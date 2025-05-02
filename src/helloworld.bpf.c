@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-/* Copyright (c) 2020 Facebook */
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -7,9 +5,27 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-SEC("tp/sched/sched_process_exec")
-int handle_exec(struct trace_event_raw_sched_process_exec *ctx)
+//创建一个数量为1的数组，用于在用户态和内核态之间传递值
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(max_entries, 1);
+	__type(key, u32);
+	__type(value, pid_t);
+} my_pid_map SEC(".maps");
+
+//定义一个tracepoint，当进程执行exec系统调用时，触发该tracepoint
+SEC("tp/syscalls/sys_enter_write")
+int handle_tp(void *ctx)
 {
+	unsigned int index = 0;
+	int pid = bpf_get_current_pid_tgid() >> 32;
+	int *my_pid = bpf_map_lookup_elem(&my_pid_map, &index);
+
+	if (!my_pid || *my_pid != pid)
+		return 1;
+
+	bpf_printk("BPF triggered from PID %d.\n", pid);
+
 	return 0;
 }
 
