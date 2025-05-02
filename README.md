@@ -37,39 +37,12 @@ TIME     EVENT COMM             PID     PPID    FILENAME/EXIT CODE
 09:25:15 EXIT  playerctl        28145   1788    [1] (6ms)
 ```
 
-### Use Nix
-
-Using [direnv](https://github.com/direnv/direnv) and nix, you can quickly access a dev shell with a complete development environment.
-
-With direnv, you can automatically load the required dependencies when you enter the directory.
-This way you don't have to worry about installing dependencies to break your other project development environment.
-
-See how to install direnv and Nix:
-- direnv: https://github.com/direnv/direnv/blob/master/docs/installation.md
-- Nix: run
-```
-sh <(curl -L https://nixos.org/nix/install) --daemon
-```
-
-Then use the following command to enable direnv support in this directory.
-
-```sh
-direnv allow
-```
-
-If you want use nix flake without direnv, simply run:
-
-```sh
-nix develop
-```
-
 ## **Features**
 
 This starter template includes the following features:
 
 - A **`Makefile`** that allows you to build the project in one command
 - A **`Dockerfile`** to create a containerized environment for your project
-- A **`flake.nix`** to enter a dev shell with needed dependencies
 - A GitHub action to automate your build and publish process
   and docker image
 - All necessary dependencies for C development with libbpf
@@ -131,17 +104,3 @@ Or with Github Packages locally:
 ```console
 docker run --rm -it --privileged -v $(pwd):/examples ghcr.io/eunomia-bpf/libbpf-template:latest
 ```
-
-### **7. GitHub Actions**
-
-This template also includes a GitHub action that will automatically build and publish your project when you push to the repository.
-To customize this action, edit the **`.github/workflows/publish.yml`** file.
-
-## **Contributing**
-
-We welcome contributions to improve this template! If you have any ideas or suggestions,
-feel free to create an issue or submit a pull request.
-
-## **License**
-
-This project is licensed under the MIT License. See the **[LICENSE](LICENSE)** file for more information.
