@@ -5,30 +5,30 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-SEC("uprobe/test_add")
-int BPF_UPROBE(uprobe_test_add, int a, int b)
+SEC("uprobe/uprobe_add")
+int BPF_UPROBE(uprobe_add, int a, int b)
 {
-    bpf_printk("test_add(%d, %d) called", a, b);
+    bpf_printk("uprobe_add(%d, %d) called", a, b);
     return 0;
 }
 
-SEC("uretprobe/test_add")
-int BPF_URETPROBE(uretprobe_test_add, int ret)
+SEC("uretprobe/uprobe_add")
+int BPF_URETPROBE(uretprobe_add, int ret)
 {
-    bpf_printk("test_add returned %d", ret);
+    bpf_printk("uprobe_add returned %d", ret);
     return 0;
 }
 
-SEC("uprobe/test_sub")
-int BPF_UPROBE(uprobe_test_sub, int a, int b)
+SEC("uprobe/uprobe_sub")
+int BPF_UPROBE(uprobe_sub, int a, int b)
 {
-    bpf_printk("test_sub(%d, %d) called", a, b);
+    bpf_printk("uprobe_sub(%d, %d) called", a, b);
     return 0;
 }
 
-SEC("uretprobe/test_sub")
-int BPF_URETPROBE(uretprobe_test_sub, int ret)
+SEC("uretprobe/uprobe_sub")
+int BPF_URETPROBE(uretprobe_sub, int ret)
 {
-    bpf_printk("test_sub returned %d", ret);
+    bpf_printk("uprobe_sub returned %d", ret);
     return 0;
 }

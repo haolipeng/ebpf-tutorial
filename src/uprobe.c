@@ -13,8 +13,14 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 int main(int argc, char **argv)
 {
 	struct uprobe_bpf *skel;
-	int err, i;
+	int err;
 	LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts);
+
+	if (argc != 2) {
+		fprintf(stderr, "Usage: %s <target_program_path>\n", argv[0]);
+		fprintf(stderr, "Example: %s ./target\n", argv[0]);
+		return 1;
+	}
 
 	/* Set up libbpf errors and debug info callback */
 	libbpf_set_print(libbpf_print_fn);
@@ -26,60 +32,66 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	/* Attach tracepoint handler */
-	uprobe_opts.func_name = "uprobed_add";
+	/* Attach uprobe for uprobe_add function */
+	uprobe_opts.func_name = "uprobe_add";
 	uprobe_opts.retprobe = false;
-	/* uprobe/uretprobe expects relative offset of the function to attach
-	 * to. libbpf will automatically find the offset for us if we provide the
-	 * function name. If the function name is not specified, libbpf will try
-	 * to use the function offset instead.
-	 */
 	skel->links.uprobe_add = bpf_program__attach_uprobe_opts(skel->progs.uprobe_add,
-								 0 /* self pid */, "/proc/self/exe",
+								 -1 /* all processes */, argv[1],
 								 0 /* offset for function */,
 								 &uprobe_opts /* opts */);
 	if (!skel->links.uprobe_add) {
 		err = -errno;
-		fprintf(stderr, "Failed to attach uprobe: %d\n", err);
+		fprintf(stderr, "Failed to attach uprobe for uprobe_add: %d\n", err);
 		goto cleanup;
 	}
 
-	/* we can also attach uprobe/uretprobe to any existing or future
-	 * processes that use the same binary executable; to do that we need
-	 * to specify -1 as PID, as we do here
-	 */
-	uprobe_opts.func_name = "uprobed_add";
+	/* Attach uretprobe for uprobe_add function */
+	uprobe_opts.func_name = "uprobe_add";
 	uprobe_opts.retprobe = true;
 	skel->links.uretprobe_add = bpf_program__attach_uprobe_opts(
-		skel->progs.uretprobe_add, -1 /* self pid */, "/proc/self/exe",
+		skel->progs.uretprobe_add, -1 /* all processes */, argv[1],
 		0 /* offset for function */, &uprobe_opts /* opts */);
 	if (!skel->links.uretprobe_add) {
 		err = -errno;
-		fprintf(stderr, "Failed to attach uprobe: %d\n", err);
+		fprintf(stderr, "Failed to attach uretprobe for uprobe_add: %d\n", err);
 		goto cleanup;
 	}
 
-	/* Let libbpf perform auto-attach for uprobe_sub/uretprobe_sub
-	 * NOTICE: we provide path and symbol info in SEC for BPF programs
-	 */
-	err = uprobe_bpf__attach(skel);
-	if (err) {
-		fprintf(stderr, "Failed to auto-attach BPF skeleton: %d\n", err);
+	/* Attach uprobe for uprobe_sub function */
+	uprobe_opts.func_name = "uprobe_sub";
+	uprobe_opts.retprobe = false;
+	skel->links.uprobe_sub = bpf_program__attach_uprobe_opts(skel->progs.uprobe_sub,
+								 -1 /* all processes */, argv[1],
+								 0 /* offset for function */,
+								 &uprobe_opts /* opts */);
+	if (!skel->links.uprobe_sub) {
+		err = -errno;
+		fprintf(stderr, "Failed to attach uprobe for uprobe_sub: %d\n", err);
 		goto cleanup;
 	}
 
-	printf("Successfully started! Please run `sudo cat /sys/kernel/debug/tracing/trace_pipe` "
-	       "to see output of the BPF programs.\n");
+	/* Attach uretprobe for uprobe_sub function */
+	uprobe_opts.func_name = "uprobe_sub";
+	uprobe_opts.retprobe = true;
+	skel->links.uretprobe_sub = bpf_program__attach_uprobe_opts(
+		skel->progs.uretprobe_sub, -1 /* all processes */, argv[1],
+		0 /* offset for function */, &uprobe_opts /* opts */);
+	if (!skel->links.uretprobe_sub) {
+		err = -errno;
+		fprintf(stderr, "Failed to attach uretprobe for uprobe_sub: %d\n", err);
+		goto cleanup;
+	}
 
-        /*
-	for (i = 0;; i++) {
-		//trigger our BPF programs
-		fprintf(stderr, ".");
-		uprobed_add(i, i + 1);
-		uprobed_sub(i * i, i);
+	printf("Successfully attached uprobes to %s\n", argv[1]);
+	printf("Monitoring functions: uprobe_add, uprobe_sub\n");
+	printf("Please run `sudo cat /sys/kernel/debug/tracing/trace_pipe` in another terminal to see output.\n");
+	printf("Then run the target program: %s\n", argv[1]);
+	printf("Press Ctrl+C to exit.\n");
+
+	/* Keep the program running to monitor function calls */
+	while (1) {
 		sleep(1);
 	}
-        */
 
 cleanup:
 	uprobe_bpf__destroy(skel);
