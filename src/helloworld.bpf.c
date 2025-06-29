@@ -5,6 +5,10 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
+//定义一个u32类型
+typedef unsigned int u32;
+typedef int pid_t;
+
 //创建一个数量为1的数组，用于在用户态和内核态之间传递值
 struct {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
@@ -17,9 +21,9 @@ struct {
 SEC("tp/syscalls/sys_enter_write")
 int handle_tp(void *ctx)
 {
-	unsigned int index = 0;
-	int pid = bpf_get_current_pid_tgid() >> 32;
-	int *my_pid = bpf_map_lookup_elem(&my_pid_map, &index);
+	u32 index = 0;
+	pid_t pid = bpf_get_current_pid_tgid() >> 32;
+	pid_t *my_pid = bpf_map_lookup_elem(&my_pid_map, &index);
 
 	if (!my_pid || *my_pid != pid)
 		return 1;
@@ -28,4 +32,3 @@ int handle_tp(void *ctx)
 
 	return 0;
 }
-
