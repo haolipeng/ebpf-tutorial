@@ -57,33 +57,8 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 
-	/* Attach uprobe for uprobe_sub function */
-	uprobe_opts.func_name = "uprobe_sub";
-	uprobe_opts.retprobe = false;
-	skel->links.uprobe_sub = bpf_program__attach_uprobe_opts(skel->progs.uprobe_sub,
-								 -1 /* all processes */, argv[1],
-								 0 /* offset for function */,
-								 &uprobe_opts /* opts */);
-	if (!skel->links.uprobe_sub) {
-		err = -errno;
-		fprintf(stderr, "Failed to attach uprobe for uprobe_sub: %d\n", err);
-		goto cleanup;
-	}
-
-	/* Attach uretprobe for uprobe_sub function */
-	uprobe_opts.func_name = "uprobe_sub";
-	uprobe_opts.retprobe = true;
-	skel->links.uretprobe_sub = bpf_program__attach_uprobe_opts(
-		skel->progs.uretprobe_sub, -1 /* all processes */, argv[1],
-		0 /* offset for function */, &uprobe_opts /* opts */);
-	if (!skel->links.uretprobe_sub) {
-		err = -errno;
-		fprintf(stderr, "Failed to attach uretprobe for uprobe_sub: %d\n", err);
-		goto cleanup;
-	}
-
 	printf("Successfully attached uprobes to %s\n", argv[1]);
-	printf("Monitoring functions: uprobe_add, uprobe_sub\n");
+	printf("Monitoring functions: uprobe_add\n");
 	printf("Please run `sudo cat /sys/kernel/debug/tracing/trace_pipe` in another terminal to see output.\n");
 	printf("Then run the target program: %s\n", argv[1]);
 	printf("Press Ctrl+C to exit.\n");

@@ -6,7 +6,6 @@ __attribute__((noinline)) int uprobe_add(int a,int b)
     return a + b;
 }
 
-
 __attribute__((noinline)) int uprobe_sub(int a,int b)
 {
     asm volatile ("");

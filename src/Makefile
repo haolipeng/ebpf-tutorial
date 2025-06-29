@@ -21,11 +21,7 @@ INCLUDES := -I$(OUTPUT) -I../libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-<<<<<<< HEAD
-APPS = helloworld uprobe
-=======
 APPS = helloworld kprobe uprobe
->>>>>>> 2bd022b46e87b3d9f757fa781220df59b131707e
 
 # Get Clang's default includes on this system. We'll explicitly add these dirs
 # to the includes list when compiling with `-target bpf` because otherwise some
