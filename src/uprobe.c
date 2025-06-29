@@ -13,7 +13,7 @@ static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va
 int main(int argc, char **argv)
 {
 	struct uprobe_bpf *skel;
-	int err, i;
+	int err;
 	LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts);
 
 	/* Set up libbpf errors and debug info callback */
