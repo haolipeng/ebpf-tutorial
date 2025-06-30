@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/src/linux-source-5.15.0/linux-source-5.15.0/include/",
+                "/usr/src/linux-source-5.15.0/linux-source-5.15.0/arch/x86/include/"
+            ],
+            "defines": [
+                "__TARGET_ARCH_x86",
+                "__ASM_SYSREG_H",
+                "__BPF_TRACING__",
+                "__KERNEL__"
+            ],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c11",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "linux-clang-x64",
+            "configurationProvider": "ms-vscode.makefile-tools"
+        }
+    ],
+    "version": 4
+}

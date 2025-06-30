@@ -1,0 +1,24 @@
+{
+    "files.associations": {
+        "resource.h": "c",
+        "libbpf.h": "c",
+        "rootkit.skel.h": "c",
+        "bpf.h": "c",
+        "types.h": "c",
+        "bpf_core_read.h": "c"
+    },
+    "makefile.configurations": [
+        {
+            "name": "rootkit",
+            "makeArgs": ["all"]
+        }
+    ],
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "/home/work/ebpfRootkit",
+            "binaryPath": "/home/work/ebpfRootkit/rootkit",
+            "binaryArgs": []
+        }
+    ],
+    "makefile.buildLog": "./build.log"
+}
