@@ -2,38 +2,58 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug helloworld (GDB)",
             "type": "cppdbg",
             "request": "launch",
-            "name": "ebpf Debug",
-            "program": "${workspaceFolder}/rootkit",
+            "program": "${workspaceFolder}/src/helloworld",
             "args": [],
-            "cwd": "${workspaceFolder}",
-            "valuesFormatting": "parseText"
+            "cwd": "${workspaceFolder}/src",
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         },
         {
-            "name": "(ebpf) Launch",
+            "name": "Debug kprobe (GDB)",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/rootkit",
+            "program": "${workspaceFolder}/src/kprobe",
             "args": [],
+            "cwd": "${workspaceFolder}/src",
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [
-                {
-                    // add the directory where our target was built to the PATHs
-                    // it gets resolved by CMake Tools:
-                    "name": "PATH",
-                    "value": "${env:PATH}:${command:cmake.getLaunchTargetDirectory}"
-                },
-                {
-                    "name": "OTHER_VALUE",
-                    "value": "Something something"
-                }
-            ],
             "externalConsole": false,
-            "miDebuggerPath": "${workspaceFolder}/debug.sh",
-
-            // "preLaunchTask": "build"
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Debug uprobe (GDB)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/uprobe",
+            "args": ["./target"],
+            "cwd": "${workspaceFolder}/src",
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ]
 }
