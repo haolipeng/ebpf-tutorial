@@ -1,27 +1,27 @@
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
-OUTPUT := .output
+OUTPUT := ../.output
 CLANG ?= clang
 LLVM_STRIP ?= llvm-strip
-LIBBPF_SRC := $(abspath ../libbpf/src)
-BPFTOOL_SRC := $(abspath ../bpftool/src)
+LIBBPF_SRC := $(abspath ../../libbpf/src)
+BPFTOOL_SRC := $(abspath ../../bpftool/src)
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
-BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
+BPFTOOL ?= /usr/local/sbin/bpftool
 ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
 			 | sed 's/aarch64/arm64/' \
 			 | sed 's/ppc64le/powerpc/' \
 			 | sed 's/mips.*/mips/' \
 			 | sed 's/arm.*/arm/' \
 			 | sed 's/riscv64/riscv/')
-VMLINUX := ../vmlinux/$(ARCH)/vmlinux.h
+VMLINUX := ../../vmlinux/$(ARCH)/vmlinux.h
 # Use our own libbpf API headers and Linux UAPI headers distributed with
 # libbpf to avoid dependency on system-wide headers, which could be missing or
 # outdated
-INCLUDES := -I$(OUTPUT) -I../libbpf/include/uapi -I$(dir $(VMLINUX))
+INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-SUBDIRS = helloworld kprobe uprobe
+APPS = helloworld
 
 # 设置默认变量
 V ?= 0
@@ -59,33 +59,12 @@ $(call allow-override,CC,$(CROSS_COMPILE)cc)
 $(call allow-override,LD,$(CROSS_COMPILE)ld)
 
 .PHONY: all
-all: $(SUBDIRS)
-
-$(SUBDIRS):
-	$(call msg,SUBDIR,$@)
-	$(Q)$(MAKE) -C $@
+all: $(APPS)
 
 .PHONY: clean
 clean:
 	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT)
-	$(Q)for dir in $(SUBDIRS); do $(MAKE) -C $$dir clean; done
-
-.PHONY: help
-help:
-	@echo "eBPF 学习项目构建系统"
-	@echo ""
-	@echo "目标:"
-	@echo "  all          - 构建所有子目录 (helloworld, kprobe, uprobe)"
-	@echo "  clean        - 清理所有构建文件"
-	@echo "  helloworld   - 只构建 helloworld 示例"
-	@echo "  kprobe       - 只构建 kprobe 示例"
-	@echo "  uprobe       - 只构建 uprobe 示例"
-	@echo ""
-	@echo "变量:"
-	@echo "  V            - 详细输出 (V=1)"
-	@echo "  CC           - C 编译器"
-	@echo "  CLANG        - Clang 编译器"
+	$(Q)rm -rf $(OUTPUT) $(APPS)
 
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
 	$(call msg,MKDIR,$@)
@@ -99,12 +78,32 @@ $(LIBBPF_OBJ): $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPU
 		    INCLUDEDIR= LIBDIR= UAPIDIR=			      \
 		    install
 
-# Build bpftool
-$(BPFTOOL): | $(BPFTOOL_OUTPUT)
-	$(call msg,BPFTOOL,$@)
-	$(Q)$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
+# Use system bpftool
+$(BPFTOOL):
+	@echo "Using system bpftool: $(BPFTOOL)"
 
-# Individual subdirectories handle their own BPF and user-space code compilation
+# Build BPF code
+$(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTPUT)
+	$(call msg,BPF,$@)
+	$(Q)$(CLANG) -g -fstack-protector -O2 -target bpf -D__TARGET_ARCH_$(ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(Q)$(LLVM_STRIP) -g $@ # strip useless DWARF info
+
+# Generate BPF skeletons
+$(OUTPUT)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
+	$(call msg,GEN-SKEL,$@)
+	$(Q)$(BPFTOOL) gen skeleton $< > $@
+
+# Build user-space code
+$(patsubst %,$(OUTPUT)/%.o,$(APPS)): %.o: %.skel.h
+
+$(OUTPUT)/%.o: %.c $(wildcard %.h) | $(OUTPUT)
+	$(call msg,CC,$@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
+
+# Build application binary
+$(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
+	$(call msg,BINARY,$@)
+	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz -o $@
 
 # delete failed targets
 .DELETE_ON_ERROR:
