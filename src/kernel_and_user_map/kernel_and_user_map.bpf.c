@@ -1,4 +1,5 @@
 #include <linux/bpf.h>
+#include <linux/sched.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
@@ -17,10 +18,11 @@ struct {
     __type(value, struct process_info);
 } process_map SEC(".maps");
 
-// 捕获进程 exec 事件 (更准确的进程创建)
+// 捕获进程 exec 事件 (更准确的进程创建) tracepoint
 SEC("tp/sched/sched_process_exec")
 int trace_process_exec(struct trace_event_raw_sched_process_exec *ctx)
 {
+    //获取进程pid
     __u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct process_info info = {};
     
@@ -29,7 +31,7 @@ int trace_process_exec(struct trace_event_raw_sched_process_exec *ctx)
     info.pid = pid;
     
     // 将进程信息存储到hashmap中
-    bpf_map_update_elem(&process_map, &pid, &info, BPF_ANY);
+    bpf_map_update_elem(&process_map, &pid, &info, BPF_ANY);//equal to insert element
     
     return 0;
 }
@@ -38,6 +40,7 @@ int trace_process_exec(struct trace_event_raw_sched_process_exec *ctx)
 SEC("tp/sched/sched_process_exit")
 int trace_process_exit(struct trace_event_raw_sched_process_exit *ctx)
 {
+    //获取进程pid
     __u32 pid = bpf_get_current_pid_tgid() >> 32;
     bpf_map_delete_elem(&process_map, &pid);
     return 0;

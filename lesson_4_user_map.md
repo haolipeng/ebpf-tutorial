@@ -1,27 +1,18 @@
+ebpf对我来说，是个新玩意。
 
+1、知道用哪些api？
 
+2、这些api的参数和返回值？在哪里找这些内容？
 
-
-
+3、各个api如何有机结合，实现一个功能？
 
 # 一、功能概述
 
-1、内核态eBPF程序 (kernel_and_user_map.bpf.c)：
+第一节课是纯用户态来操作ebpf map的api，下节课讲述内核态创建map并写入元素，用户态获取到map后遍历读取元素进行展示。
 
-- 使用 (tp/sched/sched_process_exec) tracepoint捕获进程创建事件
-- 使用 (tp/sched/sched_process_exit) tracepoint捕获进程创建事件
+用户态程序 (test_maps.c)：
 
-- 定义hashmap存储进程PID和名称
-
-- 在内核态将进程信息存储到hashmap中
-
-
-
-2、用户态程序 (kernel_and_user_map.c)：
-
-- 周期性读取hashmap中的数据
-
-- 打印捕获到的进程信息
+- 演示ebpf map的创建、删除、更新、查找等操作api
 
 - 支持优雅退出（Ctrl+C）
 
@@ -29,7 +20,7 @@
 
 # 二、编译和运行
 
-在
+在src/user_map目录下执行make命令，会在当前目录生成
 
 
 
@@ -37,9 +28,7 @@
 
 写代码前，先熟悉下主要使用到的api函数
 
-## 1、创建map
-
-bpf_map_create
+## 1、创建map bpf_map_create
 
 函数定义
 
@@ -58,11 +47,11 @@ int bpf_map_create(enum bpf_map_type map_type, const char *map_name, __u32 key_s
 - `max_entries`: maximum number of entries in the map
 - `opts`: options for the map creation
 
+详情链接：https://docs.ebpf.io/ebpf-library/libbpf/userspace/bpf_map_create/
 
 
-## 2、创建元素和更新元素
 
-bpf_map_update_elem
+## 2、创建元素和更新元素 bpf_map_update_elem
 
 **Definition**
 
@@ -95,9 +84,11 @@ enum {
 
 每个枚举变量的解释已经很清晰。
 
+详情链接：https://docs.ebpf.io/ebpf-library/libbpf/userspace/bpf_map_update_elem/
 
 
-## 3、在map中查找元素
+
+## 3、在map中查找元素 bpf_map_lookup_elem
 
 **Definition**
 
@@ -116,6 +107,8 @@ int bpf_map_lookup_elem(int fd, const void *key, void *value);
 `0`, on success; negative error, otherwise
 
 
+
+详情链接：https://docs.ebpf.io/ebpf-library/libbpf/userspace/bpf_map_lookup_elem/
 
 ## 4、在map中查找并且删除元素
 
@@ -139,9 +132,9 @@ int bpf_map_lookup_and_delete_elem(int fd, const void *key, void *value);
 
 
 
-## 5、在map中删除某个元素
+详情链接：https://docs.ebpf.io/ebpf-library/libbpf/userspace/bpf_map_lookup_and_delete_elem/
 
-bpf_map_delete_elem
+## 5、在map中删除某个元素 bpf_map_delete_elem
 
 **Definition**
 
@@ -160,9 +153,9 @@ int bpf_map_delete_elem(int fd, const void *key);
 
 
 
-## 6、遍历map表
+详情链接：https://docs.ebpf.io/ebpf-library/libbpf/userspace/bpf_map_delete_elem/
 
-bpf_map_get_next_key
+## 6、遍历map表 bpf_map_get_next_key
 
 **Definition**
 
@@ -181,6 +174,8 @@ int bpf_map_get_next_key(int fd, const void *key, void *next_key);
 `0`, on success; negative error, otherwise
 
 
+
+详情链接：https://docs.ebpf.io/ebpf-library/libbpf/userspace/bpf_map_get_next_key/
 
 # 四、疑问点
 
@@ -220,5 +215,7 @@ LIBBPF_API int bpf_map_update_elem(int fd, const void *key, const void *value, _
 
 所以两者之间对于map系列的api使用都是没问题的。
 
+https://docs.ebpf.io/ebpf-library/libbpf/userspace/bpf_map__update_elem/
 
+这个链接中的内容是`bpf_map__update_elem`，在map和update之间是两个下划线哦。
 

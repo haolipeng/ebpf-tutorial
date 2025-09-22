@@ -65,10 +65,11 @@ int main(int argc __attribute__((unused)), char **argv __attribute__((unused)))
         while (has_next && keep_running) {
             //获取当前map的文件描述符
             int map_fd = bpf_map__fd(skel->maps.process_map);
+            //遍历map中的每一个key
             err = bpf_map_get_next_key(map_fd, &next_key, &next_key);
             if(0 == err)
             {
-                // 下一个key读取成功，则解析出进程信息
+                // key读取成功，通过key查找后，解析出进程信息
                 struct process_info info;
                 err = bpf_map_lookup_elem(map_fd, &next_key, &info);
                 if (0 == err) {

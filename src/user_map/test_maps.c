@@ -79,6 +79,7 @@ static void test_hashmap()
     //3.2 lookup non-exist element,check return value
     printf("\nStep 3: lookup non-exist element, key: 3\n");
     findKey = 3;
+    findValue = -1;
     ret = bpf_map_lookup_elem(fd, &findKey, &findValue);
     printf("bpf_map_lookup_elem lookup non-exist element ret: %s, key:%lld, value:%lld\n", ret == 0 ? "success" : "failed", findKey, findValue);
 
