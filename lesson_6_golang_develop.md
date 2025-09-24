@@ -1,3 +1,19 @@
+| 更新内容           | 更新时间   | 备注                 |
+| ------------------ | ---------- | -------------------- |
+| cilium ebpf-go教程 | 2025-09-23 | 已更新文档并录制视频 |
+|                    |            |                      |
+|                    |            |                      |
+
+常见的eBPF开发框架如下：
+
+| 开发框架        | 语言       | 依赖                      | 部署复杂度 | 性能 | 优点                                     | 缺点                                 |
+| --------------- | ---------- | ------------------------- | ---------- | ---- | ---------------------------------------- | ------------------------------------ |
+| **BCC**         | Python + C | 需要 Python 运行环境      | 复杂       | 中等 | **生态成熟**，大量示例和工具支持         | 依赖 Python，**部署复杂**，性能较低  |
+| **libbpf**      | C          | 无额外依赖                | 简单       | 高   | **官方推荐**，性能最佳，适合生产环境     | **开发难度高**，需要熟悉 C 语言      |
+| **libbpfgo**    | Go + C     | 依赖 `libbpf`             | 简单       | 高   | **Go 语言封装**，Go 生态友好, 开发效率高 | 依赖`cgo`调用 `libbpf`               |
+| **cilium/ebpf** | Go + C     | 纯 Go 实现，无需 `libbpf` | 简单       | 高   | **无 libbpf 依赖**，Go 生态友好          | **功能覆盖较 libbpf 少**             |
+| **rust-bpf**    | Rust       | 需要 `Rust toolchain`     | 复杂       | 高   | **安全性强**，Rust 生态                  | Rust `eBPF` 生态尚不成熟，工具链复杂 |
+
 # 一、主流的go开发ebpf程序的第三方库
 
 使用golang开发ebpf程序的库有以下几种：
@@ -85,6 +101,7 @@ struct {
     __type(value, __u64);
     __uint(max_entries, 1);
 } pkt_count SEC(".maps");
+
 /* XDP程序入口，统计网络包数量并存入BPF映射 */
 SEC("xdp")
 int count_packets() {
@@ -224,11 +241,11 @@ func main() {
 
 
 
-**交叉编译**
+**额外知识点：交叉编译**
 
 你可能已经注意到bpf2go生成了两种类型的文件：
 
-*_bpfel.o 和 *_bpfel.go 适用于小端架构，例如 amd64、arm64、riscv64 和 loong64
+*_bpfel.o 和 *_bpfel.go 适用于小端架构，例如 amd64、arm、riscv64 和 loong64
 
 *_bpfeb.o 和 *_bpfeb.go 适用于 s390(x)、mips 和 sparc 等大端架构
 
@@ -254,15 +271,377 @@ CGO_ENABLED=0 GOARCH=arm64 go build
 
 https://cloud.tencent.com/developer/article/2472587
 
+https://github.com/cilium/ebpf/tree/main/examples
+
 
 
 # 三、libbpfgo库教程
 
 我们就开发语言、CO-RE支持、api完善度等方面，来衡量一下这几个库。
 
-TODO:需要后面好好完善的内容。
+`libbpfgo` 是`libbpf`的Go语言绑定, 拥有官方`libbpf`的功能，同时兼顾了 `Go语言`的易用性和生态，非常适合快速开发和生产环境使用。
+
+## 3、1 示例代码（官网有吗？）
+
+为什么使用本地目录下的libbpfgo库？**官网好像没找到**。
 
 
+
+replace关键词的作用：
+
+这段 `go.mod` 文件中的 `replace` 指令的作用是**将依赖重定向到本地路径**。
+
+```
+replace github.com/aquasecurity/libbpfgo => ./libbpfgo/
+```
+
+当 Go 编译器需要 `github.com/aquasecurity/libbpfgo` 这个依赖时，不要去网上下载，而是使用本地的 `./libbpfgo/` 目录。
+
+
+
+## 3、2 ebpf 内核态代码
+
+### 0）代码整体逻辑梳理
+
+这段 eBPF 代码的主要功能是捕获 do_sys_openat2 系统调用，并将进程打开文件的信息上报到用户空间，它的核心逻辑如下：
+
+1. 定义 perf 事件类型的数组：使用 BPF_MAP_TYPE_PERF_EVENT_ARRAY 来存储事件，并供 eBPF 代码向用户空间发送数据。
+2. 跟踪 do_sys_openat2 系统调用：使用 kprobe 机制监听 do_sys_openat2 内核函数，当文件打开操作发生时，获取相关进程信息。
+3. 读取文件路径参数：通过 bpf_probe_read 读取 do_sys_openat2 调用的第二个参数（文件路径），确保能够正确读取用户空间字符串。
+4. 获取进程名称：使用 bpf_get_current_comm 获取当前进程的 comm 字段（进程名称），用于标识是哪个进程执行了文件打开操作。
+5. 发送事件到用户空间：使用 bpf_perf_event_output 将进程名称数据发送到 perf 事件数组，供用户空间的 BPF 程序读取和处理。
+6. 调试输出：使用 bpf_trace_printk 将文件路径信息输出到内核调试日志，便于调试和监控。
+
+
+
+```
+内核空间                    用户空间
+┌─────────────────┐        ┌─────────────────┐
+│  do_sys_openat2 │ ──────▶│  eBPF程序触发   │
+│  (系统调用)     │        │  (kprobe)      │
+└─────────────────┘        └─────────────────┘
+                                      │
+                                      ▼
+                            ┌─────────────────┐
+                            │  bpf_get_current_comm │
+                            │  (获取进程名)   │
+                            └─────────────────┘
+                                      │
+                                      ▼
+                            ┌─────────────────┐
+                            │  bpf_perf_event_output │
+                            │  (发送到perf buffer) │
+                            └─────────────────┘
+                                      │
+                                      ▼
+                            ┌─────────────────┐
+                            │  Go channel     │
+                            │  (接收数据)     │
+                            └─────────────────┘
+                                      │
+                                      ▼
+                            ┌─────────────────┐
+                            │  统计计数       │
+                            │  (counter map)  │
+                            └─────────────────┘
+```
+
+
+
+### 1）perf事件数组定义
+
+```
+struct {
+	__uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
+	__uint(key_size, sizeof(u32));
+	__uint(value_size, sizeof(u32));
+} events SEC(".maps");
+```
+
+- 定义了 `BPF_MAP_TYPE_PERF_EVENT_ARRAY`，键大小和值大小都是4字节，用于存储 `perf` 事件，允许 `BPF` 程序向用户空间发送数据。
+
+该events在bpf_perf_event_output函数中被使用。
+
+这种数据结构和我们之前学习的hashmap有什么区别呢？
+
+
+
+### 2）ebpf kprobe挂载点
+
+**选择挂载点**
+
+**疑问点：我如何查看内核函数如do_sys_openat2的函数原型呢？**
+
+```
+root@ebpf-machine:/home/work/libbpf-ebpf-beginer/src/libbpfgo-helloworld# bpftrace -l 'kprobe:*sys_openat*'
+kprobe:__ia32_compat_sys_openat
+kprobe:__ia32_sys_openat
+kprobe:__ia32_sys_openat2
+kprobe:__x64_sys_openat
+kprobe:__x64_sys_openat2
+kprobe:do_sys_openat2
+```
+
+在上述挂载点中：
+
+- __x64_sys_openat2 只适用于 x86_64 架构
+
+- __ia32_sys_openat2 只适用于 32位兼容模式
+
+- do_sys_openat2 是架构无关的核心实现
+
+
+
+**修改前（传统方式）**
+
+```
+SEC("kprobe/do_sys_openat2")
+int kprobe__do_sys_openat2(struct pt_regs *ctx) {
+    char file_name[256];
+    bpf_probe_read(file_name, sizeof(file_name), (const void *)PT_REGS_PARM2(ctx));
+    // ...
+}
+```
+
+使用PT_REGS_PARM2宏从ctx寄存器上下文获取参数值，有点麻烦。
+
+
+
+**修改后（BPF_KPROBE 宏）**
+
+```
+SEC("kprobe/do_sys_openat2")
+int BPF_KPROBE(trace_file_open, int dfd, const char *filename, struct open_how *how) {
+    char file_name[256];
+    bpf_probe_read_user_str(file_name, sizeof(file_name), filename);
+}
+```
+
+- SEC("kprobe/do_sys_openat2"): 声明这是一个 kprobe，监听 do_sys_openat2 内核函数
+- BPF_KPROBE宏：不需要手动处理 struct pt_regs *ctx从中获取函数参数值，BPF_KPROBE宏会自动处理参数类型转换，从可读性上代码更接近原始内核函数的签名，**第一个参数是eBPF程序的函数名，可以自定义设置，并不强求是do_sys_openat2**
+
+
+
+改动对比：
+
+- 函数签名更直观，参数类型明确：int dfd, const char *filename, struct open_how *how
+- bpf_probe_read_user_str比bpf_probe_read
+
+
+
+BPF_KPROBE 的官网文档如下：
+
+https://docs.ebpf.io/ebpf-library/libbpf/ebpf/BPF_KPROBE/
+
+
+
+### 3）读取打开文件的实际名称
+
+```
+char file_name[256];
+bpf_probe_read_user_str(file_name, sizeof(file_name), filename);
+```
+
+
+
+### 4） 记录打开文件的进程名称
+
+```
+//读取当前进程名称(打开文件的进程名)
+char data[100];
+bpf_get_current_comm(&data, 100);
+```
+
+
+
+### 5） 发送事件到用户空间
+
+```
+bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &data, 100);
+```
+
+官网文档如下：
+
+https://docs.ebpf.io/linux/helper-function/bpf_perf_event_output/
+
+
+
+## 3、3 ebpf 用户态代码
+
+```
+func main() {
+	//1.信号处理，监听ctrl+c中断信号
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+
+	//2.读取编译后的ebpf文件，创建BPFModule 对象，但尚未加载到内核
+	bpfModule, err := bpf.NewModuleFromFile("helloworld.bpf.o")
+	if err != nil {
+		panic(err)
+	}
+	defer bpfModule.Close()
+
+	//3.加载ebpf模块到内核中，使其可以运行
+	if err := bpfModule.BPFLoadObject(); err != nil {
+		panic(err)
+	}
+
+	//4.获取ebpf程序中的trace_file_open程序，返回BPFProg 对象
+	prog, err := bpfModule.GetProgram("trace_file_open")
+	if err != nil {
+		panic(err)
+	}
+
+	//5.将trace_file_open程序附加到内核函数do_sys_openat2上
+	if _, err := prog.AttachKprobe("do_sys_openat2"); err != nil {
+		panic(err)
+	}
+
+	e := make(chan []byte, 300)
+
+	//6.初始化perf buffer，连接ebpf程序中的events map
+	//数据流：ebpf程序->perf buffer-> go channel
+	p, err := bpfModule.InitPerfBuf("events", e, nil, 1024)
+	must(err)
+
+	//7.启动perf buffer，开始接收数据
+	p.Start()
+
+	//8.创建进程名到计数的映射表
+	counter := make(map[string]int, 350)
+	go func() {
+		for data := range e {
+			comm := string(data) //将进程名转换为字符串并增加计数
+			counter[comm]++
+		}
+	}()
+
+	//9.在退出时进行结果输出
+	<-sig
+	p.Stop()
+	for comm, n := range counter {
+		fmt.Printf("%s: %d\n", comm, n)
+	}
+}
+```
+
+### 1. 信号处理设置
+
+```
+// 设置信号处理，监听 ctrl+c 中断信号
+sig := make(chan os.Signal, 1)
+signal.Notify(sig, os.Interrupt)
+```
+
+### 2. 加载 eBPF 文件
+
+```
+// 读取编译后的 eBPF 文件，创建 BPFModule 对象，但尚未加载到内核
+bpfModule, err := bpf.NewModuleFromFile("helloworld.bpf.o")
+if err != nil {
+    panic(err)
+}
+defer bpfModule.Close()
+```
+
+
+
+### 3. 加载 eBPF 模块到内核
+
+```
+// 加载 eBPF 模块到内核中，使其可以运行
+if err := bpfModule.BPFLoadObject(); err != nil {
+    panic(err)
+}
+```
+
+
+
+### 4. 获取 eBPF 程序
+
+```
+// 获取 eBPF 程序中的指定程序，返回 BPFProg 对象
+prog, err := bpfModule.GetProgram("trace_file_open")
+if err != nil {
+    panic(err)
+}
+```
+
+
+
+### 5. 附加 kprobe
+
+```
+// 将 eBPF 程序附加到内核函数上
+if _, err := prog.AttachKprobe("do_sys_openat2"); err != nil {
+    panic(err)
+}
+```
+
+
+
+### 6. 初始化 perf buffer
+
+```
+// 创建数据接收通道
+e := make(chan []byte, 300)
+
+// 初始化 perf buffer，连接 eBPF 程序中的 events map
+// 数据流：eBPF 程序 -> perf buffer -> go channel
+p, err := bpfModule.InitPerfBuf("events", e, nil, 1024)
+must(err)
+```
+
+
+
+### 7. 启动数据接收
+
+```
+// 启动 perf buffer，开始接收数据
+p.Start()
+```
+
+
+
+### 8. 数据处理
+
+```
+// 创建进程名到计数的映射表
+counter := make(map[string]int, 350)
+go func() {
+    for data := range e {
+        comm := string(data) // 将进程名转换为字符串并增加计数
+        counter[comm]++
+    }
+}()
+```
+
+
+
+### 9. 等待退出和结果输出
+
+```
+// 等待中断信号
+<-sig
+
+// 停止 perf buffer
+p.Stop()
+
+// 输出统计结果
+for comm, n := range counter {
+    fmt.Printf("%s: %d\n", comm, n)
+}
+```
+
+
+
+## 3、4 小节
+
+bpf.Module对象的引入
+
+
+
+https://github.com/aquasecurity/libbpfgo?tab=readme-ov-file#concepts
 
 # 四、libbpfgo库和ebpf-go库之间的差异对比
 

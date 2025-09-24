@@ -22,7 +22,7 @@ int count_packets() {
         __sync_fetch_and_add(count, 1); 
     }
 
-    return XDP_PASS; 
+    return XDP_PASS;
 }
 
 char __license[] SEC("license") = "Dual MIT/GPL";
