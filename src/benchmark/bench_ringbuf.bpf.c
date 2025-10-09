@@ -9,8 +9,6 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 struct event {
 	u64 timestamp;
 	u32 pid;
-	u32 tid;
-	u32 cpu;
 	char comm[16];
 };
 
@@ -56,10 +54,8 @@ int handle_getpid(struct trace_event_raw_sys_enter *ctx)
 	}
 
 	// 收集事件信息
-	e->timestamp = bpf_ktime_get_ns();
+	e->timestamp = bpf_ktime_get_ns(); //时间
 	e->pid = bpf_get_current_pid_tgid() >> 32;
-	e->tid = (u32)bpf_get_current_pid_tgid();
-	e->cpu = bpf_get_smp_processor_id();
 	bpf_get_current_comm(&e->comm, sizeof(e->comm));
 
 	// 提交事件到 ring buffer
