@@ -343,7 +343,7 @@ replace github.com/aquasecurity/libbpfgo => ./libbpfgo/
                                       │
                                       ▼
                             ┌─────────────────┐
-                            │  统计计数       │
+                            │  统计计数映射表    │
                             │  (counter map)  │
                             └─────────────────┘
 ```

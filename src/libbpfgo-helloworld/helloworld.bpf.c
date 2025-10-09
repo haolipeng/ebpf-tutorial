@@ -17,6 +17,7 @@ struct {
 
 
 SEC("kprobe/do_sys_openat2")
+//int kprobe__do_sys_openat2(struct pt_regs *ctx)
 int BPF_KPROBE(trace_file_open, int dfd, const char *filename, struct open_how *how) {
     //bpf_probe_read_user_str用于安全的从用户空间读取字符串，并存入file_name中
     char file_name[256];
