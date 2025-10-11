@@ -22,7 +22,7 @@ CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
 APPS = uprobe
-# ÉèÖÃÄ¬ÈÏ±äÁ¿
+# ï¿½ï¿½ï¿½ï¿½Ä¬ï¿½Ï±ï¿½ï¿½ï¿½
 V ?= 0
 CROSS_COMPILE ?=
 
@@ -84,7 +84,7 @@ $(BPFTOOL):
 # Build BPF code
 $(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTPUT)
 	$(call msg,BPF,$@)
-	$(Q)$(CLANG) -g -fstack-protector -O2 -target bpf -D__TARGET_ARCH_$(ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(Q)$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
 # Generate BPF skeletons
@@ -110,5 +110,5 @@ $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 # keep intermediate (.skel.h, .bpf.o, etc) targets
 .SECONDARY:
 
-# ÉèÖÃ make Ñ¡Ïî
+# ï¿½ï¿½ï¿½ï¿½ make Ñ¡ï¿½ï¿½
 MAKEFLAGS += --no-print-directory

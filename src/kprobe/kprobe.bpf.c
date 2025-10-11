@@ -5,7 +5,7 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-//定义一个tracepoint，当进程执行exec系统调用时，触发该tracepoint
+//定义一个kprobe，当进程执行unlinkat系统调用时（删除文件），触发该kprobe
 SEC("kprobe/do_unlinkat")
 int BPF_KPROBE(do_unlinkat, int dfd, struct filename *name)
 {

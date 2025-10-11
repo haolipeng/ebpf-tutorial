@@ -21,8 +21,8 @@ INCLUDES := -I$(OUTPUT) -I../../libbpf/include/uapi -I$(dir $(VMLINUX))
 CFLAGS := -g -Wall
 ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
 
-APPS = ringbuffer
-# 设置默认编译
+APPS = tracepoint
+# ����Ĭ�ϱ���
 V ?= 0
 CROSS_COMPILE ?=
 
@@ -110,5 +110,5 @@ $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 # keep intermediate (.skel.h, .bpf.o, etc) targets
 .SECONDARY:
 
-# 禁止 make 选项
+# ���� make ѡ��
 MAKEFLAGS += --no-print-directory

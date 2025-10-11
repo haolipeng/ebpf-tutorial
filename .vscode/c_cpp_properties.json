@@ -4,6 +4,9 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
+                "${workspaceFolder}/vmlinux",
+                "${workspaceFolder}/vmlinux/x86",
+                "${workspaceFolder}/libbpf/include/uapi",
                 "/usr/src/linux-source-5.15.0/linux-source-5.15.0/include/",
                 "/usr/src/linux-source-5.15.0/linux-source-5.15.0/arch/x86/include/"
             ],

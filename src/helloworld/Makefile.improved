@@ -151,7 +151,7 @@ CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 # =============================================================================
 $(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX) | $(OUTPUT)
 	$(call msg,BPF,$@)
-	$(Q)$(CLANG) -g -fstack-protector $(BPF_CFLAGS) -target bpf \
+	$(Q)$(CLANG) -g $(BPF_CFLAGS) -target bpf \
 		-D__TARGET_ARCH_$(ARCH) \
 		-D__BPF_TRACING__ \
 		$(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) \
