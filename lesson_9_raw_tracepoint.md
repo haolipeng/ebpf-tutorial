@@ -30,14 +30,14 @@ struct bpf_raw_tracepoint_args {
 
 | 参数位置 | 寄存器 | PT_REGS 宏 | 说明 |
 |---------|--------|-----------|------|
-| 第1个参数 | RDI | `PT_REGS_PARM1(regs)` | |
-| 第2个参数 | RSI | `PT_REGS_PARM2(regs)` | |
-| 第3个参数 | RDX | `PT_REGS_PARM3(regs)` | |
-| 第4个参数 | R10 | `PT_REGS_PARM4(regs)` | |
-| 第5个参数 | R8  | `PT_REGS_PARM5(regs)` | |
-| 第6个参数 | R9  | `PT_REGS_PARM6(regs)` | |
-| 第7个参数 | - | `PT_REGS_PARM7(regs)` | eBPF 支持 |
-| 第8个参数 | - | `PT_REGS_PARM8(regs)` | eBPF 支持 |
+| 第1个参数 | RDI | `PT_REGS_PARM1_CORE(regs)` | |
+| 第2个参数 | RSI | `PT_REGS_PARM2_CORE(regs)` | |
+| 第3个参数 | RDX | `PT_REGS_PARM3_CORE(regs)` | |
+| 第4个参数 | R10 | `PT_REGS_PARM4_CORE(regs)` | |
+| 第5个参数 | R8  | `PT_REGS_PARM5_CORE(regs)` | |
+| 第6个参数 | R9  | `PT_REGS_PARM6_CORE(regs)` | |
+| 第7个参数 | - | `PT_REGS_PARM7_CORE(regs)` | eBPF 支持 |
+| 第8个参数 | - | `PT_REGS_PARM8_CORE(regs)` | eBPF 支持 |
 
 > **注意**：目前 eBPF 最多支持获取 8 个参数。
 
@@ -53,7 +53,7 @@ int unlinkat(int dfd, const char *pathname, int flag);
 **如何获取 pathname 参数？**
 - `pathname` 是第 2 个参数
 - 在 x86_64 架构下，第 2 个参数存储在 **RSI 寄存器**
-- 因此使用 **`PT_REGS_PARM2(regs)`** 宏来读取
+- 因此使用 **`PT_REGS_PARM2_CORE(regs)`** 宏来读取
 
 
 
