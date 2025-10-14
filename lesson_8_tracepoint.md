@@ -39,11 +39,13 @@ Tracepoint 是 Linux 内核提供的一种静态跟踪点，允许我们在内�
 ```
 
 **示例：查找 unlinkat 相关事件**
+
 ```bash
 cat /sys/kernel/debug/tracing/available_events | grep unlinkat
 ```
 
 **输出**：
+
 ```
 syscalls:sys_exit_unlinkat
 syscalls:sys_enter_unlinkat
@@ -135,6 +137,7 @@ bpftrace -l tracepoint:syscalls:sys_enter_unlinkat -v
 ```
 
 **输出**：
+
 ```
 tracepoint:syscalls:sys_enter_unlinkat
     int __syscall_nr
@@ -158,8 +161,8 @@ tracepoint:syscalls:sys_enter_unlinkat
 
 | 事件类型 | 对应结构体 |
 |---------|-----------|
-| `sys_enter_*` | `trace_event_raw_sys_enter` |
-| `sys_exit_*` | `trace_event_raw_sys_exit` |
+| `sys_enter_*` | `struct trace_event_raw_sys_enter` |
+| `sys_exit_*` | `struct trace_event_raw_sys_exit` |
 
 #### sys_enter 事件的结构体定义
 
