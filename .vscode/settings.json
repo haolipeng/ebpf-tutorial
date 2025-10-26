@@ -1,5 +1,10 @@
 {
     "files.associations": {
-        "tracepoint.skel.h": "c"
+        "tracepoint.skel.h": "c",
+        "array": "c",
+        "string": "c",
+        "string_view": "c",
+        "bpf_endian.h": "c",
+        "vmlinux.h": "c"
     }
 }
