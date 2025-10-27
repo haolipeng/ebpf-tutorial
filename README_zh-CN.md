@@ -29,6 +29,8 @@
 | 8 | Tracepoint 静态跟踪点 | ✅ 已完成 | [lesson_8_tracepoint.md](lesson_8_tracepoint.md) |
 | 9 | Raw Tracepoint 原始跟踪点 | ✅ 已完成 | [lesson_9_raw_tracepoint.md](lesson_9_raw_tracepoint.md) |
 | 10 | BTF 与 CO-RE 技术 | ✅ 已完成 | [lesson_10_btf.md](lesson_10_btf.md) |
+| 11 | TC Ingress 入站流量控制 | ✅ 已完成 | [lesson_11_tc_ingress.md](lesson_11_tc_ingress.md) |
+| 12 | TC Egress 出站流量控制 | ✅ 已完成 | [lesson_12_tc_egress.md](lesson_12_tc_egress.md) |
 
 ## 🎯 学习内容
 
@@ -61,6 +63,25 @@
 - **跨内核版本兼容性**: 编写可移植的 eBPF 程序
 
 ## 🚀 开始学习
+
+### 克隆项目
+
+本项目包含 Git 子模块，可以使用以下两种方式克隆：
+
+**方式一：克隆时一并初始化子模块**
+```bash
+git clone --recursive https://github.com/haolipeng/ebpf-tutorial.git
+```
+
+**方式二：分步克隆和初始化**
+```bash
+# 首先克隆主仓库
+git clone https://github.com/haolipeng/ebpf-tutorial.git
+cd ebpf-tutorial
+
+# 然后初始化并更新子模块
+git submodule update --init
+```
 
 ### 前置要求
 

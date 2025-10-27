@@ -33,6 +33,8 @@ This is a hands-on eBPF tutorial designed to help developers master eBPF program
 | 8 | Tracepoint | ✅ Completed | [lesson_8_tracepoint_en.md](lesson_8_tracepoint_en.md) |
 | 9 | Raw Tracepoint | ✅ Completed | [lesson_9_raw_tracepoint_en.md](lesson_9_raw_tracepoint_en.md) |
 | 10 | BTF & CO-RE | ✅ Completed | [lesson_10_btf_en.md](lesson_10_btf_en.md) |
+| 11 | TC Ingress (Inbound Traffic Control) | ✅ Completed | [lesson_11_tc_ingress_en.md](lesson_11_tc_ingress_en.md) |
+| 12 | TC Egress (Outbound Traffic Control) | ✅ Completed | [lesson_12_tc_egress_en.md](lesson_12_tc_egress_en.md) |
 
 ### 🎯 What You'll Learn
 
@@ -44,16 +46,35 @@ This is a hands-on eBPF tutorial designed to help developers master eBPF program
 
 ### 🚀 Getting Started
 
-1. **Prerequisites**
+1. **Clone the Repository**
+
+   This project contains Git submodules. You can clone it using one of the following methods:
+
+   **Method 1: Clone with submodules initialized**
+   ```bash
+   git clone --recursive https://github.com/haolipeng/ebpf-tutorial.git
+   ```
+
+   **Method 2: Clone and initialize submodules separately**
+   ```bash
+   # First, clone the main repository
+   git clone https://github.com/haolipeng/ebpf-tutorial.git
+   cd ebpf-tutorial
+
+   # Then, initialize and update submodules
+   git submodule update --init
+   ```
+
+2. **Prerequisites**
    - Linux kernel >= 5.4 (5.8+ recommended for Ring Buffer)
    - Basic knowledge of C programming
    - Understanding of Linux system programming
 
-2. **Development Environment**
+3. **Development Environment**
    - Install libbpf, bpftool, and related tools
    - For Go development: Go 1.18+
 
-3. **Start Learning**
+4. **Start Learning**
    - Begin with [Lesson 1: Hello World](lesson_1_helloworld_en.md)
    - Follow the lessons in order for best results
 
@@ -91,6 +112,8 @@ This tutorial is open source and available for educational purposes.
 | 8 | Tracepoint 静态跟踪点 | ✅ 已完成 | [lesson_8_tracepoint.md](lesson_8_tracepoint.md) |
 | 9 | Raw Tracepoint 原始跟踪点 | ✅ 已完成 | [lesson_9_raw_tracepoint.md](lesson_9_raw_tracepoint.md) |
 | 10 | BTF 与 CO-RE 技术 | ✅ 已完成 | [lesson_10_btf.md](lesson_10_btf.md) |
+| 11 | TC Ingress 入站流量控制 | ✅ 已完成 | [lesson_11_tc_ingress.md](lesson_11_tc_ingress.md) |
+| 12 | TC Egress 出站流量控制 | ✅ 已完成 | [lesson_12_tc_egress.md](lesson_12_tc_egress.md) |
 
 ### 🎯 学习内容
 
