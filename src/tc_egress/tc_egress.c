@@ -72,7 +72,6 @@ int main(int argc, char **argv)
 
     // Step 7: 主循环 - 等待退出信号
     printf("\nTC ingress filter is running. Press Ctrl+C to exit.\n");
-    printf("Try: ping 8.8.8.8 (incoming ICMP replies will be dropped)\n\n");
     printf("View dropped packets: sudo cat /sys/kernel/debug/tracing/trace_pipe\n\n");
 
     // 等待退出信号

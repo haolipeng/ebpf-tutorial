@@ -51,7 +51,7 @@ int tc_egress_filter(struct __sk_buff *skb)
 
 		//bpf_trace_printk不支持打印IP 地址
 		// 所以此处应该使用 bpf_printk 打印 IP 地址（支持 %pI4 格式化）
-		bpf_printk("TC Ingress: Dropping ICMP packet: %pI4 -> %pI4\n",
+		bpf_printk("TC Egress: Dropping ICMP packet: %pI4 -> %pI4\n",
 				   &src_ip, &dst_ip);
 
 		// 如果是 ICMP 协议，则直接丢弃数据包
