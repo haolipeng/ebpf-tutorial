@@ -17,20 +17,22 @@
 
 ## 📖 教程目录
 
-| 课程 | 主题 | 状态 | 文档 |
+| 课程 | 主题 | 文档 | 配套视频 |
 | ---- | ---- | ---- | ---- |
-| 1 | Hello World 入门 | ✅ 已完成 | [lesson_1_helloworld.md](lesson_1_helloworld.md) |
-| 2 | Kprobe 内核探针 | ✅ 已完成 | [lesson_2_kprobe.md](lesson_2_kprobe.md) |
-| 3 | Uprobe 用户态探针 | ✅ 已完成 | [lesson_3_uprobe.md](lesson_3_uprobe.md) |
-| 4 | 用户态 Map 操作 | ✅ 已完成 | [lesson_4_user_map.md](lesson_4_user_map.md) |
-| 5 | 内核态与用户态 Map 通信 | ✅ 已完成 | [lesson_5_kernel_user_map.md](lesson_5_kernel_user_map.md) |
-| 6 | eBPF Go 语言开发 | ✅ 已完成 | [lesson_6_golang_develop.md](lesson_6_golang_develop.md) |
-| 7 | Ring Buffer 与 Perf Buffer | ✅ 已完成 | [lesson_7_ringbuffer_perfbuffer.md](lesson_7_ringbuffer_perfbuffer.md) |
-| 8 | Tracepoint 静态跟踪点 | ✅ 已完成 | [lesson_8_tracepoint.md](lesson_8_tracepoint.md) |
-| 9 | Raw Tracepoint 原始跟踪点 | ✅ 已完成 | [lesson_9_raw_tracepoint.md](lesson_9_raw_tracepoint.md) |
-| 10 | BTF 与 CO-RE 技术 | ✅ 已完成 | [lesson_10_btf.md](lesson_10_btf.md) |
-| 11 | TC Ingress 入站流量控制 | ✅ 已完成 | [lesson_11_tc_ingress.md](lesson_11_tc_ingress.md) |
-| 12 | TC Egress 出站流量控制 | ✅ 已完成 | [lesson_12_tc_egress.md](lesson_12_tc_egress.md) |
+| 1 | Hello World 入门 | [lesson_1_helloworld.md](lesson_1_helloworld.md) | 【【硬核入门1】eBPF Hello World 实战：零基础编写你的第一个内核追踪程序！】 https://www.bilibili.com/video/BV1JmVjzaEVX/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 2 | Kprobe 内核探针 | [lesson_2_kprobe.md](lesson_2_kprobe.md) | 【【硬核入门2】eBPF kprobe 实战：监控unlink文件删除】 https://www.bilibili.com/video/BV1NNEgzvEnM/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 3 | Uprobe 用户态探针 | [lesson_3_uprobe.md](lesson_3_uprobe.md) | 【【硬核入门3】eBPF uprobe 实战】 https://www.bilibili.com/video/BV1WduFz7EED/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 4 | 用户态 Map 操作 | [lesson_4_user_map.md](lesson_4_user_map.md) | 【【硬核入门4】 eBPF map用户态操作】 https://www.bilibili.com/video/BV1g2pXzGE2g/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 5 | 内核态与用户态 Map 通信 | [lesson_5_kernel_user_map.md](lesson_5_kernel_user_map.md) | 【【硬核入门5】 eBPF 内核态和用户态 map实战】 https://www.bilibili.com/video/BV1NEpRzuE76/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 6 | 使用cilium ebpf-go库开发eBPF程序程序 | [lesson_6_golang_develop.md](lesson_6_golang_develop.md) | 【【硬核入门6】ebpf go开发之使用cilium ebpf-go库】 https://www.bilibili.com/video/BV16JnPzmEs7/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 7 | 使用libbpfgo库开发eBPF程序程序 | [lesson_6_golang_develop.md](lesson_6_golang_develop.md) | 【【硬核入门7】eBPF实战之libbpfgo开发eBPF程序】 https://www.bilibili.com/video/BV1KrnpzjEmn/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 8 | eBPF Perf Buffer实战 | [lesson_7_ringbuffer_perfbuffer.md](lesson_7_ringbuffer_perfbuffer.md) | 【【硬核入门8】eBPF实战之perf buffer示例】 https://www.bilibili.com/video/BV1zL4jzhEF8/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 9 | eBPF Ring Buffer实战 | [lesson_7_ringbuffer_perfbuffer.md](lesson_7_ringbuffer_perfbuffer.md) | 【【硬核入门9】eBPF实战之ring buffer实战】 https://www.bilibili.com/video/BV1774jzFE2V/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 10 | Tracepoint 静态跟踪点 | [lesson_8_tracepoint.md](lesson_8_tracepoint.md) | 【【硬核入门10】eBPF实战之tracepoint】 https://www.bilibili.com/video/BV1tb4cziESu/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 11 | Raw Tracepoint 原始跟踪点 | [lesson_9_raw_tracepoint.md](lesson_9_raw_tracepoint.md) | 【【硬核入门11】eBPF实战之raw tracepoint原始跟踪点】 https://www.bilibili.com/video/BV1aQ4bzsEC5/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 12 | BTF 与 CO-RE 技术 | [lesson_10_btf.md](lesson_10_btf.md) | 【【硬核入门12】eBPF实战BTF和CORE】 https://www.bilibili.com/video/BV1q5WDzEECm/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 13 | TC Ingress 入站流量控制 | [lesson_11_tc_ingress.md](lesson_11_tc_ingress.md) | 【【硬核入门13】eBPF实战之tc ingress过滤入站ICMP包】 https://www.bilibili.com/video/BV1sMs6ziE1b/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
+| 14 | TC Egress 出站流量控制 | [lesson_12_tc_egress.md](lesson_12_tc_egress.md) | 【【硬核入门14】eBPF实战之tc egress过滤出站ICMP包】 https://www.bilibili.com/video/BV1wsyBBdEUQ/?share_source=copy_web&vd_source=39a73ab5740e6db6ffee63c6e52211c6 |
 
 ## 🎯 学习内容
 
