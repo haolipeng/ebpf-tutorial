@@ -73,22 +73,27 @@ src/ssl_write/
 #### 数据结构定义
 
 ```c
-#define MAX_DATA_SIZE 512
+#define MAX_DATA_SIZE 1024
 
 // 事件结构
 struct ssl_event {
-    u32 pid;                      // 进程 ID
-    u32 data_len;                 // 数据长度
-    u8 is_read;                   // 0=write, 1=read
+    __u32 pid;                    // 进程 ID
+    __u32 data_len;               // 数据长度
+    __u8 is_read;                 // 0=write, 1=read
     char comm[16];                // 进程名称
     char data[MAX_DATA_SIZE];     // 捕获的明文数据
 };
 ```
 
 **设计要点：**
-- `is_read` 字段区分发送/接收方向
-- `MAX_DATA_SIZE` 限制为 512 字节（eBPF 栈限制）
-- 包含进程信息便于过滤和分析
+- `is_read` 字段区分发送/接收方向（0=write, 1=read）
+- `MAX_DATA_SIZE` 设置为 1024 字节
+  - 足够捕获大部分 HTTP 请求/响应头
+  - 完整的 JSON API 响应通常在 1KB 以内
+  - 避免超过 BPF 栈大小限制
+  - 如果需要更大的缓冲区，考虑使用 BPF_MAP_TYPE_PERCPU_ARRAY
+- 包含进程信息（PID 和进程名）便于过滤和分析
+- 使用 `__u32`、`__u8` 等内核类型确保兼容性
 
 #### Ring Buffer 配置
 
@@ -147,22 +152,134 @@ static __always_inline int capture_ssl_data(const void *buf, size_t num, u8 is_r
 
 #### Uprobe Hook 实现
 
+##### SSL_write Hook（入口探针）
+
 ```c
 // SSL_write hook - 捕获发送的数据
 SEC("uprobe/SSL_write")
 int BPF_UPROBE(ssl_write_hook, void *ssl, const void *buf, size_t num) {
     return capture_ssl_data(buf, num, 0);  // 0 = write
 }
+```
 
-// SSL_read hook - 捕获接收的数据
+**SSL_write 使用入口探针的原因：**
+- ✅ 数据在函数入口时已经准备好（作为输入参数）
+- ✅ `buf` 参数指向要发送的明文数据
+- ✅ 直接在入口捕获即可
+
+##### SSL_read Hook（返回探针 + 参数保存）
+
+**⚠️ 关键问题：SSL_read 不能使用入口探针！**
+
+SSL_read 的函数签名：
+```c
+int SSL_read(SSL *ssl, void *buf, int num);
+```
+
+问题在于：
+- `buf` 是用于**接收**数据的缓冲区
+- 在函数**入口**时，缓冲区是空的（或包含垃圾数据）
+- 只有在函数**返回**时，数据才被真正读入缓冲区
+
+**解决方案：使用 uretprobe + 参数保存 Map**
+
+```c
+// 用于存储 SSL_read 参数的临时 map
+struct ssl_read_args {
+    void *buf;
+    size_t num;
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key, u64);  // pid_tgid
+    __type(value, struct ssl_read_args);
+} ssl_read_args_map SEC(".maps");
+
+// SSL_read 入口探针 - 保存参数
 SEC("uprobe/SSL_read")
-int BPF_UPROBE(ssl_read_hook, void *ssl, void *buf, size_t num) {
-    return capture_ssl_data(buf, num, 1);  // 1 = read
+int BPF_UPROBE(ssl_read_entry, void *ssl, void *buf, size_t num) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    
+    struct ssl_read_args args = {
+        .buf = buf,
+        .num = num,
+    };
+    
+    bpf_map_update_elem(&ssl_read_args_map, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
+
+// SSL_read 返回探针 - 捕获实际数据
+SEC("uretprobe/SSL_read")
+int BPF_URETPROBE(ssl_read_exit, int ret) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    
+    // 查找保存的参数
+    struct ssl_read_args *args = bpf_map_lookup_elem(&ssl_read_args_map, &pid_tgid);
+    if (!args) {
+        return 0;
+    }
+    
+    // 检查返回值（实际读取的字节数）
+    if (ret <= 0 || ret > MAX_DATA_SIZE) {
+        goto cleanup;
+    }
+    
+    // 使用按位与技巧满足 BPF 验证器要求
+    u32 data_len = ret & (MAX_DATA_SIZE - 1);
+    if (data_len == 0 || data_len > MAX_DATA_SIZE) {
+        goto cleanup;
+    }
+    
+    // 内联捕获数据逻辑（避免函数调用导致验证器问题）
+    struct ssl_event *event = bpf_ringbuf_reserve(&events, sizeof(*event), 0);
+    if (!event) {
+        goto cleanup;
+    }
+    
+    event->pid = pid_tgid >> 32;
+    event->data_len = data_len;
+    event->is_read = 1;  // 1 = read
+    bpf_get_current_comm(&event->comm, sizeof(event->comm));
+    
+    // 复制明文数据
+    if (bpf_probe_read_user(event->data, data_len, args->buf) != 0) {
+        bpf_ringbuf_discard(event, 0);
+        goto cleanup;
+    }
+    
+    bpf_ringbuf_submit(event, 0);
+    
+cleanup:
+    bpf_map_delete_elem(&ssl_read_args_map, &pid_tgid);
+    return 0;
 }
 ```
 
-**BPF_UPROBE 宏的作用：**
-- 自动处理函数参数提取
+**实现要点：**
+
+1. **两阶段捕获**：
+   - 入口探针：保存 `buf` 和 `num` 参数到 map
+   - 返回探针：读取实际数据并提交事件
+
+2. **使用 pid_tgid 作为 map 键**：
+   - 确保不同线程的调用不会相互干扰
+   - 在返回探针中清理 map 条目
+
+3. **BPF 验证器限制**：
+   - 返回值 `ret` 是有符号整数，验证器无法直接接受
+   - 使用 `ret & (MAX_DATA_SIZE - 1)` 按位与技巧
+   - 确保 `data_len` 是明确的正值范围
+
+4. **内联代码逻辑**：
+   - 不能调用 `capture_ssl_data()` 函数
+   - 验证器无法跟踪跨函数的值范围
+   - 必须内联所有逻辑
+
+**BPF_UPROBE/BPF_URETPROBE 宏的作用：**
+- 自动处理函数参数和返回值提取
 - 简化寄存器操作
 - 提高代码可读性
 
@@ -197,6 +314,8 @@ static char* find_openssl_lib() {
 
 #### 附加 Uprobe 到 OpenSSL 函数
 
+##### 注册 SSL_write 入口探针
+
 ```c
 // 使用 bpf_program__attach_uprobe_opts 新 API
 LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts);
@@ -212,11 +331,43 @@ skel->links.ssl_write_hook = bpf_program__attach_uprobe_opts(
 );
 ```
 
+##### 注册 SSL_read 的入口和返回探针
+
+```c
+// SSL_read 入口探针（保存参数）
+LIBBPF_OPTS(bpf_uprobe_opts, uprobe_ssl_read_entry_opts);
+uprobe_ssl_read_entry_opts.func_name = "SSL_read";
+uprobe_ssl_read_entry_opts.retprobe = false;  // 入口探针
+
+skel->links.ssl_read_entry = bpf_program__attach_uprobe_opts(
+    skel->progs.ssl_read_entry,
+    -1,
+    openssl_path,
+    0,
+    &uprobe_ssl_read_entry_opts
+);
+
+// SSL_read 返回探针（捕获数据）
+LIBBPF_OPTS(bpf_uprobe_opts, uprobe_ssl_read_exit_opts);
+uprobe_ssl_read_exit_opts.func_name = "SSL_read";
+uprobe_ssl_read_exit_opts.retprobe = true;  // ⚠️ 返回探针
+
+skel->links.ssl_read_exit = bpf_program__attach_uprobe_opts(
+    skel->progs.ssl_read_exit,
+    -1,
+    openssl_path,
+    0,
+    &uprobe_ssl_read_exit_opts
+);
+```
+
 **关键点：**
 
 - ✅ 使用 `uprobe_opts.func_name` 让 libbpf 自动解析符号
 - ❌ 避免使用旧 API `bpf_program__attach_uprobe()`（符号解析问题）
 - `-1` 表示监控所有进程
+- ⚠️ SSL_read 需要注册**两个**探针：入口保存参数，返回捕获数据
+- 返回探针通过设置 `retprobe = true` 来实现
 
 #### 数据格式化输出
 
@@ -308,7 +459,127 @@ curl --http1.1 -s https://httpbin.org/post -d 'hello=world'
 
 ## 五、深入理解
 
-### 5.1 为什么大部分数据是二进制？
+### 5.1 Uprobe vs Uretprobe：何时使用哪个？
+
+理解函数探针的选择是 eBPF 编程的关键技能。
+
+#### 探针类型对比
+
+| 特性 | Uprobe（入口探针） | Uretprobe（返回探针） |
+|-----|-------------------|---------------------|
+| **触发时机** | 函数调用入口 | 函数返回时 |
+| **可访问数据** | 函数参数 | 返回值 |
+| **参数访问** | ✅ 直接访问 | ❌ 需要额外保存 |
+| **返回值访问** | ❌ 无法访问 | ✅ 直接访问 |
+| **性能开销** | 低 | 稍高（需保存/恢复上下文） |
+
+#### 决策树：如何选择探针类型？
+
+```
+需要捕获的数据在哪里？
+│
+├─ 作为输入参数传入？
+│  │
+│  ├─ 是输入参数（如 SSL_write 的 buf）
+│  │  └─> 使用 Uprobe（入口探针）✅
+│  │
+│  └─ 是输出参数（如 SSL_read 的 buf）
+│     └─> 使用 Uretprobe（返回探针）✅
+│
+└─ 作为返回值返回？
+   └─> 使用 Uretprobe（返回探针）✅
+```
+
+#### 实战示例对比
+
+**示例 1：SSL_write - 使用 Uprobe**
+
+```c
+int SSL_write(SSL *ssl, const void *buf, int num);
+                          ^^^^^^^^^^^^
+                          输入参数：要发送的数据
+```
+
+数据流向：`应用 → buf → SSL_write → 网络`
+
+✅ 在**入口**捕获，数据已经准备好：
+```c
+SEC("uprobe/SSL_write")
+int BPF_UPROBE(ssl_write_hook, void *ssl, const void *buf, size_t num) {
+    // buf 指向要发送的明文 ✅
+    bpf_probe_read_user(event->data, num, buf);
+}
+```
+
+**示例 2：SSL_read - 使用 Uretprobe**
+
+```c
+int SSL_read(SSL *ssl, void *buf, int num);
+                       ^^^^^^^^^
+                       输出参数：接收数据的缓冲区
+返回值：实际读取的字节数
+```
+
+数据流向：`网络 → SSL_read → buf → 应用`
+
+❌ 在**入口**捕获会失败（buf 是空的）：
+```c
+SEC("uprobe/SSL_read")  // ❌ 错误！
+int BPF_UPROBE(ssl_read_hook, void *ssl, void *buf, size_t num) {
+    // buf 此时是空的，只有垃圾数据 ❌
+    bpf_probe_read_user(event->data, num, buf);
+}
+```
+
+✅ 在**返回**时捕获，数据已经填充：
+```c
+SEC("uretprobe/SSL_read")  // ✅ 正确！
+int BPF_URETPROBE(ssl_read_exit, int ret) {
+    // 函数已返回，buf 已被填充 ✅
+    // 从 map 读取保存的 buf 指针
+    bpf_probe_read_user(event->data, ret, args->buf);
+}
+```
+
+#### 需要保存参数的场景
+
+Uretprobe 无法直接访问函数参数，需要在入口保存：
+
+```c
+// 步骤 1：入口探针保存参数到 map
+SEC("uprobe/SSL_read")
+int ssl_read_entry(...) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    // 保存 buf 指针到 map，以 pid_tgid 为键
+    bpf_map_update_elem(&args_map, &pid_tgid, &args, BPF_ANY);
+}
+
+// 步骤 2：返回探针从 map 读取参数
+SEC("uretprobe/SSL_read")
+int ssl_read_exit(int ret) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    // 从 map 读取之前保存的 buf 指针
+    args = bpf_map_lookup_elem(&args_map, &pid_tgid);
+    // 使用 args->buf 读取数据
+}
+```
+
+**关键点：使用 pid_tgid 作为键**
+- 确保多线程并发调用不会相互干扰
+- 每个线程有独立的参数保存槽
+
+#### 常见函数的探针选择参考
+
+| 函数 | 探针类型 | 原因 |
+|-----|---------|------|
+| `write(fd, buf, len)` | Uprobe | buf 是输入参数 |
+| `read(fd, buf, len)` | Uretprobe | buf 是输出参数 |
+| `malloc(size)` | Uretprobe | 返回分配的地址 |
+| `free(ptr)` | Uprobe | ptr 是输入参数 |
+| `send(sock, buf, len, flags)` | Uprobe | buf 是输入参数 |
+| `recv(sock, buf, len, flags)` | Uretprobe | buf 是输出参数 |
+
+### 5.2 为什么大部分数据是二进制？
 
 **HTTP/2 协议特点：**
 
@@ -388,7 +659,98 @@ ldconfig -p | grep libssl
 sudo ./ssl_sniff -l /path/to/libssl.so
 ```
 
-#### 问题 3：捕获不到数据
+#### 问题 3：SSL_read 捕获到垃圾数据
+
+**症状：**
+```
+🔍 SSL_read() called:
+   PID: 1860035
+   Process: curl
+📝 Data (32 bytes):
+   [HEX Dump]
+   00000000  70 38 f2 b9 b2 55 00 00  a0 5a 0d ba b2 55 00 00  |p8...U...Z...U..|
+   00000010  01 00 00 00 00 00 00 00  70 38 f2 b9 b2 55 00 00  |........p8...U..|
+```
+
+看到的是内存地址或随机数据，而不是预期的 JSON 响应。
+
+**根本原因：**
+
+SSL_read 的函数签名是 `int SSL_read(SSL *ssl, void *buf, int num)`，其中：
+- `buf` 是**输出参数**，用于接收解密后的数据
+- 在函数**入口**时，缓冲区尚未填充，只包含栈上的旧数据
+- 数据只有在函数**返回**时才会被写入缓冲区
+
+**错误实现：**
+```c
+// ❌ 错误：在入口捕获 SSL_read
+SEC("uprobe/SSL_read")
+int BPF_UPROBE(ssl_read_hook, void *ssl, void *buf, size_t num) {
+    // buf 此时是空的！
+    return capture_ssl_data(buf, num, 1);
+}
+```
+
+**正确实现：使用 uretprobe**
+
+需要两个探针配合：
+
+```c
+// 1. 入口探针：保存参数
+SEC("uprobe/SSL_read")
+int BPF_UPROBE(ssl_read_entry, void *ssl, void *buf, size_t num) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    struct ssl_read_args args = { .buf = buf, .num = num };
+    bpf_map_update_elem(&ssl_read_args_map, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
+
+// 2. 返回探针：捕获实际数据
+SEC("uretprobe/SSL_read")
+int BPF_URETPROBE(ssl_read_exit, int ret) {
+    // 此时 buf 已被填充，可以读取数据
+    // ... 从 map 读取参数并捕获数据
+}
+```
+
+**BPF 验证器问题：**
+
+如果遇到编译错误：
+```
+R2 min value is negative, either use unsigned or 'var &= const'
+```
+
+这是因为返回值 `ret` 是有符号整数，需要使用按位与技巧：
+```c
+// ✅ 正确：使用按位与确保正值范围
+u32 data_len = ret & (MAX_DATA_SIZE - 1);
+if (data_len == 0 || data_len > MAX_DATA_SIZE) {
+    goto cleanup;
+}
+```
+
+**验证修复：**
+```bash
+curl --http1.1 -s https://httpbin.org/post -d 'hello=world'
+```
+
+应该能看到完整的 JSON 响应：
+```
+🔍 SSL_read() called:
+   PID: 1862362
+   Process: curl
+📝 Data (430 bytes):
+   [ASCII String]
+   {
+     "args": {}, 
+     "form": {
+       "hello": "world"
+     }, 
+     ...
+   }
+```
+
+#### 问题 4：捕获不到数据
 
 **检查清单：**
 1. 确认以 root 权限运行

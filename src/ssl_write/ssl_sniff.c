@@ -32,7 +32,7 @@ static void print_data(const char *data, int len) {
     // 如果超过 70% 可打印，显示为字符串
     if (printable_count > 1) {
         printf("   [ASCII String]\n   ");
-        for (int i = 0; i < len && i < 500; i++) {
+        for (int i = 0; i < len && i < 1024; i++) {
             if (data[i] >= 32 && data[i] <= 126) {
                 printf("%c", data[i]);
             } else if (data[i] == '\n') {
@@ -45,14 +45,13 @@ static void print_data(const char *data, int len) {
                 printf(".");
             }
         }
-        if (len > 500) printf("\n   ...(truncated)");
+        if (len > 1024) printf("\n   ...(truncated)");
         printf("\n");
     }
 
     // hexdump 格式打印（十六进制 + ASCII）
-    #if 0
     printf("   [HEX Dump]\n");
-    for (int i = 0; i < len && i < 500; i += 16) {
+    for (int i = 0; i < len && i < 1024; i += 16) {
         // 打印偏移地址
         printf("   %08x  ", i);
         
@@ -78,17 +77,23 @@ static void print_data(const char *data, int len) {
         }
         printf("|\n");
     }
-    if (len > 500) {
-        printf("   ...(truncated, showing first 500 bytes)\n");
+    if (len > 1024) {
+        printf("   ...(truncated, showing first 1024 bytes)\n");
     }
-    #endif
 }
 
 // 事件处理回调
 static int handle_event(void *ctx, void *data, size_t data_sz) {
     const struct ssl_event *e = data;
     
-    printf("\n🔍 SSL_write() called:\n");
+    //根据操作类型(读 or 写)来打印输出日志
+    if (e->is_read)
+    {
+        printf("\n🔍 SSL_read() called:\n");
+    }else{
+        printf("\n🔍 SSL_write() called:\n");
+    }
+    
     printf("   PID: %u\n", e->pid);
     printf("   Process: %s\n", e->comm);
     print_data(e->data, e->data_len);
@@ -165,31 +170,45 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    //SSL_read注册
-    uprobe_opts.func_name = "SSL_read";  // 明确指定函数名
-    uprobe_opts.retprobe = false;          // 不是 retprobe
+    // SSL_read 入口探针注册（保存参数）
+    LIBBPF_OPTS(bpf_uprobe_opts, uprobe_ssl_read_entry_opts);
+    uprobe_ssl_read_entry_opts.func_name = "SSL_read";
+    uprobe_ssl_read_entry_opts.retprobe = false;  // 入口探针
     
-    skel->links.ssl_read_hook = bpf_program__attach_uprobe_opts(
-        skel->progs.ssl_read_hook,
-        -1,                 // 所有进程
-        openssl_path,       // 库路径
-        0,                  // 偏移量（使用 func_name 时设为 0）
-        &uprobe_opts        // 选项
+    skel->links.ssl_read_entry = bpf_program__attach_uprobe_opts(
+        skel->progs.ssl_read_entry,
+        -1,
+        openssl_path,
+        0,
+        &uprobe_ssl_read_entry_opts
     );
     
-    if (!skel->links.ssl_write_hook) {
-        fprintf(stderr, "❌ Failed to attach uprobe to SSL_write\n");
+    if (!skel->links.ssl_read_entry) {
+        fprintf(stderr, "❌ Failed to attach uprobe to SSL_read (entry)\n");
         fprintf(stderr, "💡 Make sure you're running as root: sudo %s\n", argv[0]);
         goto cleanup;
     }
 
-    if (!skel->links.ssl_read_hook) {
-        fprintf(stderr, "❌ Failed to attach uprobe to SSL_write\n");
+    // SSL_read 返回探针注册（捕获数据）
+    LIBBPF_OPTS(bpf_uprobe_opts, uprobe_ssl_read_exit_opts);
+    uprobe_ssl_read_exit_opts.func_name = "SSL_read";
+    uprobe_ssl_read_exit_opts.retprobe = true;  // 返回探针
+    
+    skel->links.ssl_read_exit = bpf_program__attach_uprobe_opts(
+        skel->progs.ssl_read_exit,
+        -1,
+        openssl_path,
+        0,
+        &uprobe_ssl_read_exit_opts
+    );
+    
+    if (!skel->links.ssl_read_exit) {
+        fprintf(stderr, "❌ Failed to attach uretprobe to SSL_read (exit)\n");
         fprintf(stderr, "💡 Make sure you're running as root: sudo %s\n", argv[0]);
         goto cleanup;
     }
     
-    printf("✅ Successfully attached to SSL_write()\n");
+    printf("✅ Successfully attached to SSL_write() and SSL_read()\n");
     
     // 设置 RingBuffer
     rb = ring_buffer__new(bpf_map__fd(skel->maps.events), handle_event, NULL, NULL);
@@ -198,7 +217,7 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
     
-    printf("🎯 Monitoring SSL_write() calls... Press Ctrl+C to stop\n");
+    printf("🎯 Monitoring SSL_write() and SSL_read() calls... Press Ctrl+C to stop\n");
     printf("💡 Try: curl --http1.1 -s https://httpbin.org/post -d 'hello=world'\n\n");
     
     // 主事件循环
