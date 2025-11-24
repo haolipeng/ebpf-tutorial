@@ -14,11 +14,9 @@
 #============================================================================
 # 工具链配置
 #============================================================================
-CLANG     ?= clang
-LLC       ?= llc
+CLANG      ?= clang
 LLVM_STRIP ?= llvm-strip
-CC        ?= cc
-LD        ?= ld
+CC         ?= cc
 
 #============================================================================
 # 目录配置
@@ -29,9 +27,8 @@ ROOT_DIR  := $(abspath ../..)
 # 输出目录 (存放 .o, .skel.h 等中间文件)
 OUTPUT    := $(ROOT_DIR)/.output
 
-# 源码目录
-LIBBPF_SRC  := $(ROOT_DIR)/libbpf/src
-BPFTOOL_SRC := $(ROOT_DIR)/bpftool/src
+# 当前项目名称 (用于清理时只删除本项目文件)
+PROJECT   := $(notdir $(CURDIR))
 
 # 预构建产物
 LIBBPF_OBJ := $(OUTPUT)/libbpf.a
@@ -122,13 +119,20 @@ $(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 # 标准目标
 #============================================================================
 
-.PHONY: all clean
+.PHONY: all clean check-prebuild
 
-all: $(APPS)
+# 预构建检查
+check-prebuild:
+	@if [ ! -f "$(LIBBPF_OBJ)" ] || [ ! -f "$(BPFTOOL)" ]; then \
+		echo "错误: 请先在项目根目录执行 'make prebuild'"; \
+		exit 1; \
+	fi
+
+all: check-prebuild $(APPS)
 
 clean:
-	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT)/*.o $(OUTPUT)/*.skel.h $(APPS)
+	$(call msg,CLEAN,$(PROJECT))
+	$(Q)rm -f $(foreach app,$(APPS),$(OUTPUT)/$(app).o $(OUTPUT)/$(app).bpf.o $(OUTPUT)/$(app).skel.h $(app))
 
 #============================================================================
 # Make 选项
