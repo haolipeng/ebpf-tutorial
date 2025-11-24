@@ -10,22 +10,25 @@
 *.so
 *.skel.h
 
-# 二进制文件（src 子目录下的可执行文件）
-src/*/helloworld
-src/*/kprobe
-src/*/uprobe
-src/*/tracepoint
-src/*/raw_tracepoint
-src/*/perfbuffer
-src/*/ringbuffer
-src/*/btf
-src/*/tc_ingress
-src/*/tc_egress
-src/*/xdp_filter
-src/*/ssl_sniff
-src/*/kernel_and_user_map
-src/*/test_maps
-src/*/bench_*
+# 二进制可执行文件（src 子目录）
+src/helloworld/helloworld
+src/kprobe/kprobe
+src/uprobe/uprobe
+src/tracepoint/tracepoint
+src/raw_tracepoint/raw_tracepoint
+src/perfbuffer/perfbuffer
+src/ringbuffer/ringbuffer
+src/btf/btf
+src/tc_ingress/tc_ingress
+src/tc_egress/tc_egress
+src/xdp_filter/xdp_filter
+src/ssl_write/ssl_sniff
+src/trace_claude/ssl_sniff
+src/kernel_and_user_map/kernel_and_user_map
+src/user_map/test_maps
+src/benchmark/bench_*
+src/benchmark/stress_*
+src/libbpfgo-helloworld/helloworld
 
 # 编辑器
 *.swp
