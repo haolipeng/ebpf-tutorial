@@ -1,11 +1,16 @@
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
-# src 目录 Makefile - 管理所有示例子项目
+# eBPF 示例项目 - 子目录管理
+#
+# 使用方法:
+#   make              - 构建所有示例
+#   make helloworld   - 构建单个示例
+#   make clean        - 清理所有构建产物
 
-# 引入公共配置
-ROOT_DIR := $(abspath ..)
-include $(ROOT_DIR)/build/common.mk
+#============================================================================
+# 子目录列表
+#============================================================================
 
-# 子目录列表 (基于 libbpf 的 C 语言示例)
+# C 语言示例 (基于 libbpf)
 SUBDIRS = \
 	helloworld \
 	kprobe \
@@ -24,40 +29,39 @@ SUBDIRS = \
 	trace_claude \
 	benchmark
 
-# Go 语言示例 (需要单独构建)
-GO_SUBDIRS = cilium-ebpf-go libbpfgo-helloworld
+# Go 语言示例 (需要单独构建，参见各自目录的 README)
+# GO_SUBDIRS = cilium-ebpf-go libbpfgo-helloworld
 
 #============================================================================
-# 主要目标
+# 构建目标
 #============================================================================
 
-.PHONY: all $(SUBDIRS)
+.PHONY: all $(SUBDIRS) clean
+
 all: $(SUBDIRS)
 
 $(SUBDIRS):
-	$(call msg,SUBDIR,$@)
-	$(Q)$(MAKE) -C $@
+	@echo "  BUILD    $@"
+	@$(MAKE) -C $@
 
-#============================================================================
-# 清理
-#============================================================================
-
-.PHONY: clean
 clean:
-	$(call msg,CLEAN)
-	$(Q)for dir in $(SUBDIRS); do $(MAKE) -C $$dir clean 2>/dev/null || true; done
+	@echo "  CLEAN    all"
+	@for dir in $(SUBDIRS); do $(MAKE) -C $$dir clean 2>/dev/null || true; done
 
 #============================================================================
-# 帮助
+# 帮助信息
 #============================================================================
 
 .PHONY: help
 help:
-	@echo "src 目录构建系统"
+	@echo "eBPF 示例构建"
+	@echo ""
+	@echo "使用方法: make [目标]"
 	@echo ""
 	@echo "目标:"
-	@echo "  all          - 构建所有子目录"
-	@echo "  clean        - 清理所有子项目"
-	@for dir in $(SUBDIRS); do echo "  $$dir"; done
+	@echo "  all        - 构建所有示例"
+	@echo "  clean      - 清理所有构建产物"
+	@echo "  <示例名>   - 构建单个示例，例如: make helloworld"
 	@echo ""
-	@echo "提示: 推荐在根目录执行 make 命令"
+	@echo "可用示例:"
+	@for dir in $(SUBDIRS); do echo "  $$dir"; done

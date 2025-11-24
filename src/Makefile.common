@@ -1,36 +1,144 @@
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
-# 子项目公共配置 - 兼容层
+# eBPF 示例项目 - 公共构建规则
 #
-# 这个文件为旧式 include ../Makefile.common 提供兼容支持
-# 实际配置和规则来自 build/ 目录
+# 使用方法: 在子目录 Makefile 中设置 APPS 变量，然后 include 此文件
+# 示例:
+#   APPS = helloworld
+#   include ../Makefile.common
 
-# 重要: 确保 'all' 是默认目标（在 include 之前设置）
-# 子项目 Makefile 也必须在 include 前定义 .DEFAULT_GOAL := all
+#============================================================================
+# 默认目标
+#============================================================================
 .DEFAULT_GOAL := all
 
-# 设置项目根目录
-ROOT_DIR := $(abspath ../..)
+#============================================================================
+# 工具链配置
+#============================================================================
+CLANG     ?= clang
+LLC       ?= llc
+LLVM_STRIP ?= llvm-strip
+CC        ?= cc
+LD        ?= ld
 
-# 引入公共配置和构建规则
-include $(ROOT_DIR)/build/common.mk
-include $(ROOT_DIR)/build/rules.mk
+#============================================================================
+# 目录配置
+#============================================================================
+# 项目根目录 (ebpf-tutorial/)
+ROOT_DIR  := $(abspath ../..)
 
-# 预构建检查目标
-.PHONY: check-prebuild
-check-prebuild:
-	@if [ ! -f "$(LIBBPF_OBJ)" ]; then \
-		echo "错误: libbpf.a 不存在，请先在根目录执行 'make prebuild'"; \
-		exit 1; \
-	fi
-	@if [ ! -f "$(BPFTOOL)" ]; then \
-		echo "错误: bpftool 不存在，请先在根目录执行 'make prebuild'"; \
-		exit 1; \
-	fi
+# 输出目录 (存放 .o, .skel.h 等中间文件)
+OUTPUT    := $(ROOT_DIR)/.output
 
-# 用户空间代码依赖 skeleton (默认规则)
+# 源码目录
+LIBBPF_SRC  := $(ROOT_DIR)/libbpf/src
+BPFTOOL_SRC := $(ROOT_DIR)/bpftool/src
+
+# 预构建产物
+LIBBPF_OBJ := $(OUTPUT)/libbpf.a
+BPFTOOL    := $(OUTPUT)/bpftool/bootstrap/bpftool
+
+#============================================================================
+# 架构检测
+#============================================================================
+ARCH := $(shell uname -m | sed 's/x86_64/x86/' \
+                         | sed 's/aarch64/arm64/' \
+                         | sed 's/ppc64le/powerpc/' \
+                         | sed 's/mips.*/mips/' \
+                         | sed 's/arm.*/arm/' \
+                         | sed 's/riscv64/riscv/')
+
+# vmlinux.h 路径
+VMLINUX_DIR := $(ROOT_DIR)/vmlinux/$(ARCH)
+VMLINUX_H   := $(VMLINUX_DIR)/vmlinux.h
+
+#============================================================================
+# 编译选项
+#============================================================================
+# 头文件搜索路径
+INCLUDES := -I$(OUTPUT) -I$(ROOT_DIR)/libbpf/include/uapi -I$(VMLINUX_DIR)
+
+# C 编译选项
+CFLAGS := -g -Wall
+
+# 链接选项
+ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
+
+# Clang BPF 系统头文件路径
+CLANG_BPF_SYS_INCLUDES := $(shell $(CLANG) -v -E - </dev/null 2>&1 \
+    | sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
+
+#============================================================================
+# 输出控制 (V=1 显示详细命令)
+#============================================================================
+ifeq ($(V),1)
+    Q =
+    msg = @true
+else
+    Q = @
+    msg = @printf '  %-8s %s%s\n' "$(1)" "$(notdir $(2))" "$(if $(3), $(3))";
+endif
+
+#============================================================================
+# 构建规则
+#============================================================================
+
+# 创建输出目录
+$(OUTPUT):
+	$(call msg,MKDIR,$@)
+	$(Q)mkdir -p $@
+
+# 1. 编译 BPF 代码 (.bpf.c -> .bpf.o)
+$(OUTPUT)/%.bpf.o: %.bpf.c $(wildcard %.h) $(VMLINUX_H) | $(OUTPUT)
+	$(call msg,BPF,$@)
+	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) \
+		$(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(Q)$(LLVM_STRIP) -g $@
+
+# 2. 生成 BPF skeleton (.bpf.o -> .skel.h)
+$(OUTPUT)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT)
+	$(call msg,GEN-SKEL,$@)
+	$(Q)$(BPFTOOL) gen skeleton $< > $@
+
+# 3. 编译用户空间代码 (.c -> .o)
+$(OUTPUT)/%.o: %.c $(wildcard %.h) | $(OUTPUT)
+	$(call msg,CC,$@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
+
+#============================================================================
+# 应用程序构建
+#============================================================================
+
+# 用户空间 .o 依赖对应的 skeleton (除非设置 NO_SKELETON=1)
+ifndef NO_SKELETON
 $(patsubst %,$(OUTPUT)/%.o,$(APPS)): %.o: %.skel.h
+endif
 
-# 构建应用程序二进制 (默认规则)
-$(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT) check-prebuild
+# 链接生成最终可执行文件
+$(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT)
 	$(call msg,BINARY,$@)
 	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz -o $@
+
+#============================================================================
+# 标准目标
+#============================================================================
+
+.PHONY: all clean
+
+all: $(APPS)
+
+clean:
+	$(call msg,CLEAN)
+	$(Q)rm -rf $(OUTPUT)/*.o $(OUTPUT)/*.skel.h $(APPS)
+
+#============================================================================
+# Make 选项
+#============================================================================
+
+# 删除构建失败的目标文件
+.DELETE_ON_ERROR:
+
+# 保留中间文件 (.bpf.o, .skel.h)
+.SECONDARY:
+
+# 不打印进入/离开目录信息
+MAKEFLAGS += --no-print-directory
