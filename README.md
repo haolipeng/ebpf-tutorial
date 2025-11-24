@@ -74,6 +74,54 @@ This is a hands-on eBPF tutorial designed to help developers master eBPF program
    - Install libbpf, bpftool, and related tools
    - For Go development: Go 1.18+
 
+### 📁 Project Structure
+
+```
+ebpf-tutorial/
+├── Makefile                    # Top-level entry point
+├── build/                      # Build system configuration
+│   ├── config.mk               # Configurable options (toolchain, paths)
+│   ├── common.mk               # Common variables and functions
+│   └── rules.mk                # Common build rules (BPF compilation)
+├── src/                        # Example source code
+│   ├── Makefile                # Manages sub-projects
+│   ├── helloworld/             # Lesson 1 example
+│   ├── kprobe/                 # Lesson 2 example
+│   └── ...                     # More examples
+├── libbpf/                     # libbpf submodule
+├── bpftool/                    # bpftool submodule
+├── vmlinux/                    # Kernel type headers
+└── .output/                    # Build output directory (auto-generated)
+```
+
+### 🔨 Build Instructions
+
+```bash
+# View available commands
+make help
+
+# First time: prebuild dependencies
+make prebuild
+
+# Build all examples
+make all
+
+# (Optional) Generate vmlinux.h from current kernel
+make vmlinux
+```
+
+**Available Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `make help` | Show help information |
+| `make prebuild` | Prebuild libbpf and bpftool |
+| `make vmlinux` | Generate vmlinux.h from kernel |
+| `make all` | Build all examples |
+| `make clean` | Clean sub-project build files |
+| `make clean-all` | Clean all build files |
+| `make install-deps` | Install system dependencies |
+
 4. **Start Learning**
    - Begin with [Lesson 1: Hello World](lesson_1_helloworld_en.md)
    - Follow the lessons in order for best results

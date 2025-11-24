@@ -1,116 +1,44 @@
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
-OUTPUT := .output
-CLANG ?= clang
-LLVM_STRIP ?= llvm-strip
-LIBBPF_SRC := $(abspath ../libbpf/src)
-BPFTOOL_SRC := $(abspath ../bpftool/src)
-LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
-BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
-BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
-ARCH ?= $(shell uname -m | sed 's/x86_64/x86/' \
-			 | sed 's/aarch64/arm64/' \
-			 | sed 's/ppc64le/powerpc/' \
-			 | sed 's/mips.*/mips/' \
-			 | sed 's/arm.*/arm/' \
-			 | sed 's/riscv64/riscv/')
-VMLINUX := ../vmlinux/$(ARCH)/vmlinux.h
-# Use our own libbpf API headers and Linux UAPI headers distributed with
-# libbpf to avoid dependency on system-wide headers, which could be missing or
-# outdated
-INCLUDES := -I$(OUTPUT) -I../libbpf/include/uapi -I$(dir $(VMLINUX))
-CFLAGS := -g -Wall
-ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
+# src 目录 Makefile - 管理所有示例子项目
 
+# 引入公共配置
+ROOT_DIR := $(abspath ..)
+include $(ROOT_DIR)/build/common.mk
+
+# 子目录列表
 SUBDIRS = helloworld kprobe uprobe
 
-# 设置默认变量
-V ?= 0
-CROSS_COMPILE ?=
+#============================================================================
+# 主要目标
+#============================================================================
 
-# Get Clang's default includes on this system. We'll explicitly add these dirs
-# to the includes list when compiling with `-target bpf` because otherwise some
-# architecture-specific dirs will be "missing" on some architectures/distros -
-# headers such as asm/types.h, asm/byteorder.h, asm/socket.h, asm/sockios.h,
-# sys/cdefs.h etc. might be missing.
-#
-# Use '-idirafter': Don't interfere with include mechanics except where the
-# build would have failed anyways.
-CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
-	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
-
-ifeq ($(V),1)
-	Q =
-	msg = @true
-else
-	Q = @
-	msg = @printf '  %-8s %s%s\n'					\
-		      "$(1)"						\
-		      "$(patsubst $(abspath $(OUTPUT))/%,%,$(2))"	\
-		      "$(if $(3), $(3))";
-endif
-
-define allow-override
-  $(if $(or $(findstring environment,$(origin $(1))),\
-            $(findstring command line,$(origin $(1)))),,\
-    $(eval $(1) = $(2)))
-endef
-
-$(call allow-override,CC,$(CROSS_COMPILE)cc)
-$(call allow-override,LD,$(CROSS_COMPILE)ld)
-
-.PHONY: all
+.PHONY: all $(SUBDIRS)
 all: $(SUBDIRS)
 
 $(SUBDIRS):
 	$(call msg,SUBDIR,$@)
 	$(Q)$(MAKE) -C $@
 
+#============================================================================
+# 清理
+#============================================================================
+
 .PHONY: clean
 clean:
 	$(call msg,CLEAN)
-	$(Q)rm -rf $(OUTPUT)
-	$(Q)for dir in $(SUBDIRS); do $(MAKE) -C $$dir clean; done
+	$(Q)for dir in $(SUBDIRS); do $(MAKE) -C $$dir clean 2>/dev/null || true; done
+
+#============================================================================
+# 帮助
+#============================================================================
 
 .PHONY: help
 help:
-	@echo "eBPF 学习项目构建系统"
+	@echo "src 目录构建系统"
 	@echo ""
 	@echo "目标:"
-	@echo "  all          - 构建所有子目录 (helloworld, kprobe, uprobe)"
-	@echo "  clean        - 清理所有构建文件"
-	@echo "  helloworld   - 只构建 helloworld 示例"
-	@echo "  kprobe       - 只构建 kprobe 示例"
-	@echo "  uprobe       - 只构建 uprobe 示例"
+	@echo "  all          - 构建所有子目录"
+	@echo "  clean        - 清理所有子项目"
+	@for dir in $(SUBDIRS); do echo "  $$dir"; done
 	@echo ""
-	@echo "变量:"
-	@echo "  V            - 详细输出 (V=1)"
-	@echo "  CC           - C 编译器"
-	@echo "  CLANG        - Clang 编译器"
-
-$(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
-	$(call msg,MKDIR,$@)
-	$(Q)mkdir -p $@
-
-# Build libbpf
-$(LIBBPF_OBJ): $(wildcard $(LIBBPF_SRC)/*.[ch] $(LIBBPF_SRC)/Makefile) | $(OUTPUT)/libbpf
-	$(call msg,LIB,$@)
-	$(Q)$(MAKE) -C $(LIBBPF_SRC) BUILD_STATIC_ONLY=1		      \
-		    OBJDIR=$(dir $@)/libbpf DESTDIR=$(dir $@)		      \
-		    INCLUDEDIR= LIBDIR= UAPIDIR=			      \
-		    install
-
-# Build bpftool
-$(BPFTOOL): | $(BPFTOOL_OUTPUT)
-	$(call msg,BPFTOOL,$@)
-	$(Q)$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
-
-# Individual subdirectories handle their own BPF and user-space code compilation
-
-# delete failed targets
-.DELETE_ON_ERROR:
-
-# keep intermediate (.skel.h, .bpf.o, etc) targets
-.SECONDARY:
-
-# 设置 make 选项
-MAKEFLAGS += --no-print-directory
+	@echo "提示: 推荐在根目录执行 make 命令"

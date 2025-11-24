@@ -1,2 +1,35 @@
+# 环境配置
 .direnv
-/build
+
+# 构建输出目录
+.output/
+
+# 编译产物
+*.o
+*.a
+*.so
+*.skel.h
+
+# 二进制文件（src 子目录下的可执行文件）
+src/*/helloworld
+src/*/kprobe
+src/*/uprobe
+src/*/tracepoint
+src/*/raw_tracepoint
+src/*/perfbuffer
+src/*/ringbuffer
+src/*/btf
+src/*/tc_ingress
+src/*/tc_egress
+src/*/xdp_filter
+src/*/ssl_sniff
+src/*/kernel_and_user_map
+src/*/test_maps
+src/*/bench_*
+
+# 编辑器
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
