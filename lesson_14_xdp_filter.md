@@ -1,332 +1,149 @@
-# 第14课：XDP (eXpress Data Path) 高性能数据包过滤
+# Lesson 14: XDP 数据包过滤入门
 
-## 📚 什么是 XDP？
+## 什么是 XDP
 
-**XDP (eXpress Data Path)** 是 Linux 内核中最早的数据包处理点，在网络驱动层就可以处理数据包，性能极高。
-
-### XDP 的特点
-
-- ⚡ **极致性能**：在驱动层处理，无需经过内核网络栈
-- 🚀 **零拷贝**：直接在驱动内存中处理数据包
-- 🎯 **早期过滤**：在数据包进入系统前就可以丢弃
-- 🔧 **灵活处理**：可以修改、丢弃、转发或重定向数据包
-
-## 🎯 学习目标
-
-1. 理解 XDP 的工作原理和性能优势
-2. 掌握 XDP 三种模式的区别和选择
-3. 学会编写 XDP 数据包过滤程序
-4. 实现高性能的 ICMP 包过滤和流量统计
-
----
-
-## 1. XDP vs TC 对比
-
-| 特性 | XDP | TC |
-|------|-----|-----|
-| **处理位置** | 网络驱动层 | 内核网络栈 |
-| **性能** | 极高 | 高 |
-| **方向** | 仅 Ingress（入站） | Ingress + Egress |
-| **功能** | 基础数据包处理 | 更丰富（QoS、分类等） |
-| **适用场景** | DDoS 防护、负载均衡 | 流量整形、策略控制 |
-
----
-
-## 2. 本课程示例功能
-
-这个示例演示了 XDP 的基本用法：
-
-1. **过滤 ICMP 数据包**：在驱动层直接丢弃 ICMP 包
-2. **流量统计**：统计各协议（ICMP、TCP、UDP）的数据包数量
-3. **实时显示**：每 2 秒更新一次统计信息
-
----
-
-## 3. XDP 返回值
-
-XDP 程序通过返回值决定数据包的处理方式：
-
-| 返回值 | 宏定义 | 含义 |
-|--------|--------|------|
-| `0` | `XDP_ABORTED` | 发生错误，丢弃数据包 |
-| `1` | `XDP_DROP` | **丢弃数据包** |
-| `2` | `XDP_PASS` | **允许通过**，传递到网络栈 |
-| `3` | `XDP_TX` | 从接收接口发送回去（反弹） |
-| `4` | `XDP_REDIRECT` | 重定向到其他网卡 |
-
----
-
-## 4. 内核空间程序：XDP 数据包过滤
-
-### 4.1 完整代码
-
-**文件：`xdp_filter.bpf.c`**
-
-完整代码请参考：`src/xdp_filter/xdp_filter.bpf.c`
-
-### 4.2 代码讲解
-
-详见下方"代码讲解"部分。
-
----
-
-## 5. 用户空间程序
-
-### 5.1 完整代码
-
-**文件：`xdp_filter.c`**
-
-完整代码请参考：`src/xdp_filter/xdp_filter.c`
-
-### 5.2 关键 API
-
-- `bpf_xdp_attach()` - 附加 XDP 程序到网卡
-- `bpf_xdp_detach()` - 卸载 XDP 程序
-- `if_nametoindex()` - 获取网卡索引
-
----
-
-## 6. 编译和运行
-
-### 6.1 编译步骤
-
-```bash
-cd src/xdp_filter
-make
-```
-
-编译成功后会生成：
-- `xdp_filter` - 可执行程序
-- `../.output/xdp_filter.bpf.o` - eBPF 字节码
-- `../.output/xdp_filter.skel.h` - 骨架头文件
-
-### 6.2 运行示例
-
-```bash
-# 查看网络接口名称
-ip addr show
-
-# 运行 XDP 程序（需要 root 权限）
-sudo ./xdp_filter ens33   # 替换为您的网络接口名
-```
-
-### 6.3 测试效果
-
-在另一个终端执行：
-
-```bash
-# ICMP 包会被 XDP 丢弃（在驱动层）
-ping 8.8.8.8
-
-# TCP 流量正常通过
-curl https://google.com
-```
-
-### 6.4 查看统计信息
-
-程序会实时显示统计信息：
+XDP (eXpress Data Path) 是 Linux 内核中最早的数据包处理点。数据包刚从网卡驱动收到，还没进入内核网络栈时，XDP 就可以处理它。
 
 ```
-XDP Packet Statistics (Press Ctrl+C to exit)
-Protocol        Packet Count
---------        ------------
-TCP             1234
-UDP             56
-
-Note: ICMP packets are dropped by XDP (not counted in network stack)
+网卡 → [XDP 处理点] → 内核网络栈 → 应用程序
+         ↑
+      本课程在这里处理
 ```
 
-### 6.5 查看内核日志
+**核心优势**：在数据包进入内核网络栈之前就能丢弃，性能极高，适合 DDoS 防护等场景。
 
-```bash
-sudo cat /sys/kernel/debug/tracing/trace_pipe
-```
+## 示例功能
 
-预期输出：
-```
-xdp_filter-12345 [001] .... 123456.789: XDP: Dropping ICMP packet: 8.8.8.8 -> 192.168.1.100
-```
+本示例实现：
+- 在 XDP 层丢弃所有 ICMP 数据包
+- 统计 TCP/UDP 数据包数量
 
----
+## XDP 返回值
 
-## 7. XDP 模式说明
+XDP 程序通过返回值告诉内核如何处理数据包：
 
-XDP 支持三种工作模式：
+| 返回值 | 含义 |
+|--------|------|
+| `XDP_DROP` | 丢弃数据包 |
+| `XDP_PASS` | 正常传递到内核网络栈 |
+| `XDP_TX` | 从收到的网卡发回去 |
+| `XDP_REDIRECT` | 重定向到其他网卡 |
+| `XDP_ABORTED` | 错误，丢弃并记录 |
 
-### 1. **Generic/SKB 模式** (XDP_FLAGS_SKB_MODE)
-- ✅ **兼容性最好**：所有网卡都支持
-- ⚠️ **性能较低**：在内核网络栈中模拟 XDP
-- 📌 **本示例使用此模式**
-
-### 2. **Native/Driver 模式** (XDP_FLAGS_DRV_MODE)
-- ⚡ **性能高**：直接在驱动中执行
-- ⚠️ **需要驱动支持**：仅部分网卡支持（如 Intel i40e、mlx5 等）
-- 🔧 修改代码：将 `XDP_FLAGS_SKB_MODE` 改为 `XDP_FLAGS_DRV_MODE`
-
-### 3. **Hardware Offload 模式** (XDP_FLAGS_HW_MODE)
-- 🚀 **性能最高**：在网卡硬件中执行
-- ⚠️ **需要硬件支持**：仅高端网卡支持（如 Netronome NFP）
-
----
-
-## 8. 代码讲解
+## 核心代码解析
 
 ### 内核态程序 (xdp_filter.bpf.c)
-
-#### 1. XDP 程序入口点
 
 ```c
 SEC("xdp")
 int xdp_filter_icmp(struct xdp_md *ctx)
-```
+{
+    // 1. 获取数据包的起始和结束指针
+    void *data = (void *)(long)ctx->data;
+    void *data_end = (void *)(long)ctx->data_end;
 
-- `SEC("xdp")` 标记为 XDP 程序
-- `struct xdp_md` 是 XDP 的上下文结构
+    // 2. 解析以太网头
+    struct ethhdr *eth = data;
+    if ((void *)(eth + 1) > data_end)  // 边界检查，必须有
+        return XDP_PASS;
 
-#### 2. 数据包解析
+    // 3. 只处理 IPv4
+    if (eth->h_proto != bpf_htons(ETH_P_IP))
+        return XDP_PASS;
 
-```c
-void *data = (void *)(long)ctx->data;
-void *data_end = (void *)(long)ctx->data_end;
-```
+    // 4. 解析 IP 头
+    struct iphdr *ip = (void *)(eth + 1);
+    if ((void *)(ip + 1) > data_end)   // 边界检查
+        return XDP_PASS;
 
-XDP 直接访问原始数据包内存。
+    // 5. 如果是 ICMP，丢弃
+    if (ip->protocol == IPPROTO_ICMP) {
+        return XDP_DROP;  // 直接丢弃，不进入内核网络栈
+    }
 
-#### 3. 边界检查
-
-```c
-if ((void *)(eth + 1) > data_end)
+    // 6. 其他协议正常通过
     return XDP_PASS;
-```
-
-必须进行边界检查，否则 verifier 会拒绝加载。
-
-#### 4. 流量统计
-
-```c
-__u64 *count = bpf_map_lookup_elem(&packet_stats, &proto);
-if (count) {
-    __sync_fetch_and_add(count, 1);
 }
 ```
 
-使用 BPF Map 存储统计信息。
+**要点**：
+- `SEC("xdp")` 标记这是 XDP 程序
+- `struct xdp_md *ctx` 包含数据包的元信息
+- `ctx->data` 和 `ctx->data_end` 是数据包的内存边界
+- **必须做边界检查**，否则 BPF 验证器会拒绝加载
 
 ### 用户态程序 (xdp_filter.c)
 
-#### 1. 附加 XDP 程序
-
 ```c
-bpf_xdp_attach(ifindex, prog_fd, XDP_FLAGS_SKB_MODE, NULL);
-```
+// 获取网卡索引
+int ifindex = if_nametoindex(ifname);
 
-- `ifindex`：网络接口索引
-- `prog_fd`：程序文件描述符
-- `XDP_FLAGS_SKB_MODE`：使用通用模式
+// 附加 XDP 程序到网卡
+int err = bpf_xdp_attach(ifindex, prog_fd, XDP_FLAGS_SKB_MODE, NULL);
 
-#### 2. 读取统计信息
-
-```c
-bpf_map_lookup_elem(bpf_map__fd(skel->maps.packet_stats),
-                    &proto, &count);
-```
-
-从 BPF Map 读取协议统计数据。
-
----
-
-## 9. 实战练习
-
-### 练习 1：丢弃指定源 IP
-
-**任务**：扩展程序，丢弃来自特定 IP 地址的所有流量。
-
-**提示**：
-```c
-// 在 XDP 程序中添加
-__u32 blocked_ip = bpf_htonl(0xC0A80101);  // 192.168.1.1
-if (ip->saddr == blocked_ip) {
-    return XDP_DROP;
-}
-```
-
-### 练习 2：限制 UDP 端口
-
-**任务**：只允许特定 UDP 端口通过，其他端口丢弃。
-
-### 练习 3：实现简单的负载均衡
-
-**任务**：使用 `XDP_TX` 将部分流量反弹回发送方。
-
----
-
-## 10. 常见问题
-
-### Q1: 如何查看已加载的 XDP 程序？
-
-```bash
-# 使用 ip 命令
-ip link show ens33
-
-# 使用 bpftool
-sudo bpftool net list
-sudo bpftool prog list
-```
-
-### Q2: 如何手动卸载 XDP 程序？
-
-```bash
-# 使用 ip 命令
-sudo ip link set dev ens33 xdp off
-
-# 或在程序中使用
+// 程序退出时卸载
 bpf_xdp_detach(ifindex, XDP_FLAGS_SKB_MODE, NULL);
 ```
 
-### Q3: 为什么 ICMP 统计为 0？
+**XDP 模式**：
+- `XDP_FLAGS_SKB_MODE`：通用模式，所有网卡都支持，性能一般
+- `XDP_FLAGS_DRV_MODE`：驱动模式，需要网卡支持，性能高
+- `XDP_FLAGS_HW_MODE`：硬件卸载，需要特定网卡，性能最高
 
-因为 ICMP 包在 XDP 层就被丢弃了，根本没有进入内核网络栈，所以不会被统计。只有通过 `XDP_PASS` 的数据包才会被计数。
+本示例使用 SKB 模式以保证兼容性。
 
-### Q4: 我的网卡支持 Native XDP 吗？
+## 编译运行
 
 ```bash
-# 查看驱动支持
-ethtool -i ens33
+# 编译
+cd src/xdp_filter
+make
 
-# 尝试加载 Native 模式
-# 如果失败，说明不支持
-sudo ip link set dev ens33 xdpgeneric off
-sudo ip link set dev ens33 xdp obj xdp_filter.bpf.o sec xdp
+# 运行（需要 root 权限）
+sudo ./xdp_filter eth0    # 替换为你的网卡名
+
+# 查看网卡名
+ip addr show
 ```
 
----
+## 测试
 
-## 11. 参考资源
+```bash
+# 终端 1：运行 XDP 程序
+sudo ./xdp_filter eth0
 
-- [XDP Tutorial](https://github.com/xdp-project/xdp-tutorial)
-- [Cilium XDP 文档](https://docs.cilium.io/en/stable/bpf/)
-- [Linux XDP Documentation](https://www.kernel.org/doc/html/latest/networking/xdp.html)
-- [libbpf XDP API](https://libbpf.readthedocs.io/en/latest/api.html)
+# 终端 2：测试 ICMP（会被丢弃）
+ping 8.8.8.8              # 无响应，因为 ICMP 被 XDP 丢弃
 
----
+# 终端 2：测试 TCP（正常通过）
+curl https://baidu.com    # 正常工作
+```
 
-## 12. 总结
+## 常用命令
 
-通过本示例，你学习了：
+```bash
+# 查看网卡上的 XDP 程序
+ip link show eth0
 
-- ✅ XDP 的基本概念和工作原理
-- ✅ XDP 程序的编写和加载
-- ✅ XDP 与 TC 的区别和选择
-- ✅ 使用 BPF Map 进行数据统计
-- ✅ 三种 XDP 模式的差异
+# 手动卸载 XDP 程序
+sudo ip link set dev eth0 xdp off
 
-**XDP 的典型应用场景：**
-- 🛡️ DDoS 防护（在驱动层丢弃恶意流量）
-- ⚖️ 负载均衡（分发流量到不同后端）
-- 🔥 防火墙（高性能包过滤）
-- 📊 流量监控（零开销统计）
+# 查看已加载的 BPF 程序
+sudo bpftool prog list
+sudo bpftool net list
+```
 
-**下一步学习：**
-- 尝试 XDP_TX 和 XDP_REDIRECT
-- 结合 XDP 和 TC 实现完整的流量管理
-- 学习 AF_XDP 进行用户空间高性能包处理
+## 与 TC 的区别
+
+| | XDP | TC |
+|--|-----|-----|
+| 处理位置 | 网卡驱动层 | 内核网络栈 |
+| 方向 | 仅入站 | 入站 + 出站 |
+| 性能 | 极高 | 高 |
+| 适用场景 | DDoS 防护、负载均衡 | 流量整形、策略控制 |
+
+## 练习
+
+1. **丢弃指定 IP**：修改代码，丢弃来自特定 IP 的数据包
+2. **端口过滤**：只允许特定 TCP 端口通过
+3. **统计优化**：使用 Per-CPU Map 提高统计性能
