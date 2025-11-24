@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
+# 子项目公共配置 - 兼容层
+#
+# 这个文件为旧式 include ../Makefile.common 提供兼容支持
+# 实际配置和规则来自 build/ 目录
+
+# 重要: 确保 'all' 是默认目标（在 include 之前设置）
+# 子项目 Makefile 也必须在 include 前定义 .DEFAULT_GOAL := all
+.DEFAULT_GOAL := all
+
+# 设置项目根目录
+ROOT_DIR := $(abspath ../..)
+
+# 引入公共配置和构建规则
+include $(ROOT_DIR)/build/common.mk
+include $(ROOT_DIR)/build/rules.mk
+
+# 预构建检查目标
+.PHONY: check-prebuild
+check-prebuild:
+	@if [ ! -f "$(LIBBPF_OBJ)" ]; then \
+		echo "错误: libbpf.a 不存在，请先在根目录执行 'make prebuild'"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(BPFTOOL)" ]; then \
+		echo "错误: bpftool 不存在，请先在根目录执行 'make prebuild'"; \
+		exit 1; \
+	fi
+
+# 用户空间代码依赖 skeleton (默认规则)
+$(patsubst %,$(OUTPUT)/%.o,$(APPS)): %.o: %.skel.h
+
+# 构建应用程序二进制 (默认规则)
+$(APPS): %: $(OUTPUT)/%.o $(LIBBPF_OBJ) | $(OUTPUT) check-prebuild
+	$(call msg,BINARY,$@)
+	$(Q)$(CC) $(CFLAGS) $^ $(ALL_LDFLAGS) -lelf -lz -o $@

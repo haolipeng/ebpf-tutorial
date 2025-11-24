@@ -5,8 +5,27 @@
 ROOT_DIR := $(abspath ..)
 include $(ROOT_DIR)/build/common.mk
 
-# 子目录列表
-SUBDIRS = helloworld kprobe uprobe
+# 子目录列表 (基于 libbpf 的 C 语言示例)
+SUBDIRS = \
+	helloworld \
+	kprobe \
+	uprobe \
+	user_map \
+	kernel_and_user_map \
+	perfbuffer \
+	ringbuffer \
+	tracepoint \
+	raw_tracepoint \
+	btf \
+	tc_ingress \
+	tc_egress \
+	xdp_filter \
+	ssl_write \
+	trace_claude \
+	benchmark
+
+# Go 语言示例 (需要单独构建)
+GO_SUBDIRS = cilium-ebpf-go libbpfgo-helloworld
 
 #============================================================================
 # 主要目标
