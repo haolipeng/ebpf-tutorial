@@ -34,14 +34,25 @@ vmlinux: bpftool		## 从当前内核生成 vmlinux.h
 	@echo "✓ vmlinux.h 已生成: $(VMLINUX_H)"
 
 #============================================================================
+# 子模块初始化
+#============================================================================
+
+.PHONY: submodules
+submodules:			## 初始化 Git 子模块
+	@if [ ! -f "$(LIBBPF_SRC)/Makefile" ] || [ ! -f "$(BPFTOOL_SRC)/../libbpf/src/Makefile" ]; then \
+		echo "初始化 Git 子模块..."; \
+		git submodule update --init --recursive; \
+	fi
+
+#============================================================================
 # 依赖构建
 #============================================================================
 
 .PHONY: libbpf
-libbpf: $(LIBBPF_OBJ)		## 构建 libbpf 静态库
+libbpf: submodules $(LIBBPF_OBJ)		## 构建 libbpf 静态库
 
 .PHONY: bpftool
-bpftool: $(BPFTOOL)		## 构建 bpftool
+bpftool: submodules $(BPFTOOL)		## 构建 bpftool
 
 $(OUTPUT)/libbpf:
 	$(Q)mkdir -p $@
