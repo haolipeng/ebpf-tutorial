@@ -10,7 +10,7 @@
 #include <bpf/bpf.h>
 
 // 导入生成的骨架头文件
-#include "ssl_sniff.skel.h"
+#include "claude_trace.skel.h"
 #include "common.h"
 
 // 终端颜色定义
@@ -337,26 +337,6 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     return 0;
 }
 
-// 查找 OpenSSL 库路径
-static char* find_openssl_lib() {
-    static char *paths[] = {
-        "/usr/lib/x86_64-linux-gnu/libssl.so.3",
-        "/usr/lib/x86_64-linux-gnu/libssl.so.1.1",
-        "/usr/lib/libssl.so.3",
-        "/usr/lib/libssl.so.1.1",
-        "/lib/x86_64-linux-gnu/libssl.so.3",
-        "/usr/local/lib/libssl.so",
-        NULL
-    };
-
-    for (int i = 0; paths[i]; i++) {
-        if (access(paths[i], F_OK) == 0) {
-            return paths[i];
-        }
-    }
-    return NULL;
-}
-
 // 查找 Node.js 二进制文件
 static char* find_node_binary() {
     static char *paths[] = {
@@ -375,7 +355,7 @@ static char* find_node_binary() {
 }
 
 // 附加 uprobe 到指定库的辅助函数
-static int attach_ssl_probes(struct ssl_sniff_bpf *skel, const char *lib_path, const char *lib_name) {
+static int attach_ssl_probes(struct claude_trace_bpf *skel, const char *lib_path, const char *lib_name) {
     LIBBPF_OPTS(bpf_uprobe_opts, uprobe_opts);
 
     printf("📌 Attaching to %s: %s\n", lib_name, lib_path);
@@ -441,7 +421,7 @@ static int attach_ssl_probes(struct ssl_sniff_bpf *skel, const char *lib_path, c
 }
 
 int main(int argc, char **argv) {
-    struct ssl_sniff_bpf *skel;
+    struct claude_trace_bpf *skel;
     struct ring_buffer *rb = NULL;
     int err;
 
@@ -475,7 +455,7 @@ int main(int argc, char **argv) {
     }
 
     // 打开并加载 BPF 程序
-    skel = ssl_sniff_bpf__open_and_load();
+    skel = claude_trace_bpf__open_and_load();
     if (!skel) {
         fprintf(stderr, "❌ Failed to open and load BPF skeleton\n");
         return 1;
@@ -501,23 +481,11 @@ int main(int argc, char **argv) {
         }
     }
 
-    // 尝试附加到系统 OpenSSL 库 (通用监控)
-    char *openssl_path = find_openssl_lib();
-    if (openssl_path) {
-        printf("\n");
-        if (attach_ssl_probes(skel, openssl_path, "OpenSSL") == 0) {
-            attached_count++;
-        }
-    }
-
     if (attached_count == 0) {
         fprintf(stderr, "\n❌ Failed to attach to any SSL library!\n");
         fprintf(stderr, "💡 Make sure you're running as root: sudo %s\n", argv[0]);
         if (!node_path) {
             fprintf(stderr, "💡 Node.js not found at expected paths\n");
-        }
-        if (!openssl_path) {
-            fprintf(stderr, "💡 OpenSSL library not found\n");
         }
         goto cleanup;
     }
@@ -556,6 +524,6 @@ int main(int argc, char **argv) {
 
 cleanup:
     ring_buffer__free(rb);
-    ssl_sniff_bpf__destroy(skel);
+    claude_trace_bpf__destroy(skel);
     return 0;
 }
