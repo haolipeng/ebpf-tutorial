@@ -153,5 +153,152 @@ cleanup:
     return 0;
 }
 
+// 命令执行事件 ring buffer
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} exec_events SEC(".maps");
+
+// 检查进程是否是目标进程的后代（最多向上查找 10 层）
+static __always_inline bool is_descendant_of_target(__u32 target_pid) {
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+
+    // 向上遍历进程树，最多 10 层
+    #pragma unroll
+    for (int i = 0; i < 10; i++) {
+        __u32 ppid = BPF_CORE_READ(task, real_parent, tgid);
+        if (ppid == target_pid) {
+            return true;
+        }
+        if (ppid == 0 || ppid == 1) {
+            // 到达 init 进程，停止遍历
+            return false;
+        }
+        task = BPF_CORE_READ(task, real_parent);
+        if (!task) {
+            return false;
+        }
+    }
+    return false;
+}
+
+// Hook execve 系统调用 - 捕获 Claude Code 执行的命令
+// 使用 sched_process_exec tracepoint（参考 agentsight 项目）
+SEC("tp/sched/sched_process_exec")
+int trace_execve(struct trace_event_raw_sched_process_exec *ctx) {
+    struct task_struct *task;
+    __u32 pid, ppid;
+
+    // 获取进程信息
+    pid = bpf_get_current_pid_tgid() >> 32;
+    task = (struct task_struct *)bpf_get_current_task();
+    ppid = BPF_CORE_READ(task, real_parent, tgid);
+
+    // 检查是否是目标进程的后代
+    __u32 key = 0;
+    __u32 *target = bpf_map_lookup_elem(&target_pid_map, &key);
+    if (!target || *target == 0) return 0;
+    if (!is_descendant_of_target(*target)) return 0;
+
+    // 分配事件
+    struct exec_event *e = bpf_ringbuf_reserve(&exec_events, sizeof(*e), 0);
+    if (!e) return 0;
+
+    // 填充基本事件数据
+    e->pid = pid;
+    e->ppid = ppid;
+    bpf_get_current_comm(&e->comm, sizeof(e->comm));
+
+    // 读取命令路径 - 使用 tracepoint 提供的 filename
+    unsigned int fname_off = ctx->__data_loc_filename & 0xFFFF;
+    bpf_probe_read_str(e->filename, sizeof(e->filename), (void *)ctx + fname_off);
+
+    // 读取完整命令行参数（从 mm->arg_start）
+    struct mm_struct *mm = BPF_CORE_READ(task, mm);
+    if (mm) {
+        unsigned long arg_start = BPF_CORE_READ(mm, arg_start);
+        unsigned long arg_end = BPF_CORE_READ(mm, arg_end);
+        unsigned long arg_len = arg_end - arg_start;
+
+        // 限制到缓冲区大小
+        if (arg_len > MAX_ARGS_SIZE - 1)
+            arg_len = MAX_ARGS_SIZE - 1;
+
+        // 从用户空间内存读取命令行（使用 bpf_probe_read_user 读取整个缓冲区）
+        if (arg_len > 0) {
+            // 先清零
+            __builtin_memset(e->args, 0, MAX_ARGS_SIZE);
+
+            // 读取整个参数区域（包含多个 null 分隔的参数）
+            long ret = bpf_probe_read_user(e->args, arg_len, (void *)arg_start);
+            if (ret == 0) {
+                // 将 null 字节替换为空格以提高可读性（保留最后一个 null）
+                #pragma unroll
+                for (int i = 0; i < MAX_ARGS_SIZE - 1; i++) {
+                    if (i >= arg_len - 1) break;
+                    if (e->args[i] == '\0')
+                        e->args[i] = ' ';
+                }
+                // 确保字符串以 null 结尾
+                if (arg_len < MAX_ARGS_SIZE) {
+                    e->args[arg_len] = '\0';
+                } else {
+                    e->args[MAX_ARGS_SIZE - 1] = '\0';
+                }
+            }
+        }
+    }
+
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+
+// Bash readline 事件 ring buffer
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} bash_events SEC(".maps");
+
+// Bash readline uretprobe - 捕获 bash 命令行输入
+// 参考 agentsight 项目实现
+SEC("uretprobe/bash:readline")
+int BPF_URETPROBE(bash_readline, const void *ret) {
+    // 如果返回值为空，跳过
+    if (!ret)
+        return 0;
+
+    // 检查是否是 bash 进程
+    char comm[16];
+    bpf_get_current_comm(&comm, sizeof(comm));
+    if (comm[0] != 'b' || comm[1] != 'a' || comm[2] != 's' || comm[3] != 'h' || comm[4] != 0)
+        return 0;
+
+    __u32 pid = bpf_get_current_pid_tgid() >> 32;
+
+    // 检查是否是目标进程的后代
+    __u32 key = 0;
+    __u32 *target = bpf_map_lookup_elem(&target_pid_map, &key);
+    if (!target || *target == 0) return 0;
+    if (!is_descendant_of_target(*target)) return 0;
+
+    // 获取父进程 PID
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    __u32 ppid = BPF_CORE_READ(task, real_parent, tgid);
+
+    // 分配事件
+    struct bash_event *e = bpf_ringbuf_reserve(&bash_events, sizeof(*e), 0);
+    if (!e)
+        return 0;
+
+    // 填充事件数据
+    e->pid = pid;
+    e->ppid = ppid;
+    bpf_get_current_comm(&e->comm, sizeof(e->comm));
+    bpf_probe_read_user_str(e->command, sizeof(e->command), ret);
+
+    bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+
 char LICENSE[] SEC("license") = "GPL";
 

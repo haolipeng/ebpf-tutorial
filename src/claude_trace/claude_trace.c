@@ -19,6 +19,13 @@ static volatile int stop = 0;
 static int target_pid = -1;  // -1 表示监控所有进程
 static unsigned long long packet_count = 0;
 static unsigned long long total_bytes = 0;
+static unsigned long long exec_count = 0;
+static unsigned long long bash_count = 0;
+
+// 功能开关
+static int ssl_enabled = 1;   // 默认启用 SSL 事件
+static int exec_enabled = 1;  // 默认启用 EXEC 事件
+static int bash_enabled = 1;  // 默认启用 BASH 事件
 
 // JSON 输出相关
 static cJSON *json_events_array = NULL;
@@ -282,6 +289,45 @@ static int handle_event(void *ctx, void *data, size_t data_sz) {
     return 0;
 }
 
+// 命令执行事件处理回调
+static int handle_exec_event(void *ctx, void *data, size_t data_sz) {
+    const struct exec_event *e = data;
+    char timestamp[32];
+
+    exec_count++;
+    get_timestamp(timestamp, sizeof(timestamp));
+
+    // 检查是否是 sh -c 或 bash -c 命令，提取实际命令
+    if (strstr(e->filename, "/sh") || strstr(e->filename, "/bash")) {
+        const char *cmd_start = strstr(e->args, "-c ");
+        if (cmd_start) {
+            cmd_start += 3;  // 跳过 "-c "
+            printf("[%s] 📟 EXEC | %s\n", timestamp, cmd_start);
+            return 0;
+        }
+    }
+
+    // 直接显示命令和参数
+    printf("[%s] 📟 EXEC | %s\n", timestamp, e->args);
+    return 0;
+}
+
+// Bash readline 事件处理回调
+static int handle_bash_event(void *ctx, void *data, size_t data_sz) {
+    const struct bash_event *e = data;
+    char timestamp[32];
+
+    // 跳过空命令
+    if (e->command[0] == '\0')
+        return 0;
+
+    bash_count++;
+    get_timestamp(timestamp, sizeof(timestamp));
+
+    printf("[%s] 💻 BASH | %s\n", timestamp, e->command);
+    return 0;
+}
+
 // 查找 Node.js 二进制文件
 static char* find_node_binary() {
     static char *paths[] = {
@@ -341,12 +387,14 @@ static int attach_ssl_probes(struct claude_trace_bpf *skel, const char *lib_path
 int main(int argc, char **argv) {
     struct claude_trace_bpf *skel;
     struct ring_buffer *rb = NULL;
+    struct ring_buffer *exec_rb = NULL;
+    struct ring_buffer *bash_rb = NULL;
     int err;
 
     // 解析命令行参数
     int opt;
     char *output_filename = NULL;
-    while ((opt = getopt(argc, argv, "p:o:h")) != -1) {
+    while ((opt = getopt(argc, argv, "p:o:sSeEbBh")) != -1) {
         switch (opt) {
             case 'p':
                 target_pid = atoi(optarg);
@@ -355,14 +403,43 @@ int main(int argc, char **argv) {
                 output_file_enabled = 1;
                 output_filename = optarg;
                 break;
+            case 's':
+                ssl_enabled = 1;   // 启用 SSL 事件
+                break;
+            case 'S':
+                ssl_enabled = 0;   // 禁用 SSL 事件
+                break;
+            case 'e':
+                exec_enabled = 1;  // 启用 EXEC 事件
+                break;
+            case 'E':
+                exec_enabled = 0;  // 禁用 EXEC 事件
+                break;
+            case 'b':
+                bash_enabled = 1;  // 启用 BASH 事件
+                break;
+            case 'B':
+                bash_enabled = 0;  // 禁用 BASH 事件
+                break;
             case 'h':
-                printf("Usage: %s [-p PID] [-o FILE]\n", argv[0]);
+                printf("Usage: %s [-p PID] [-o FILE] [-s|-S] [-e|-E] [-b|-B]\n", argv[0]);
+                printf("Options:\n");
                 printf("  -p PID   Monitor specific process (default: all processes)\n");
                 printf("  -o FILE  Output to specified JSON file\n");
+                printf("  -s       Enable SSL event capture (default)\n");
+                printf("  -S       Disable SSL event capture\n");
+                printf("  -e       Enable EXEC event capture (default)\n");
+                printf("  -E       Disable EXEC event capture\n");
+                printf("  -b       Enable BASH readline capture (default)\n");
+                printf("  -B       Disable BASH readline capture\n");
                 printf("  -h       Show this help\n");
+                printf("\nExamples:\n");
+                printf("  %s -p 1234              # Monitor PID 1234, all events\n", argv[0]);
+                printf("  %s -p 1234 -S           # Monitor PID 1234, EXEC+BASH only\n", argv[0]);
+                printf("  %s -p 1234 -S -B        # Monitor PID 1234, EXEC only\n", argv[0]);
                 return 0;
             default:
-                fprintf(stderr, "Usage: %s [-p PID] [-o FILE]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-p PID] [-o FILE] [-s|-S] [-e|-E] [-b|-B]\n", argv[0]);
                 return 1;
         }
     }
@@ -371,8 +448,17 @@ int main(int argc, char **argv) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    printf("SSL/TLS Monitor | PID: %s\n",
-           target_pid > 0 ? "specified" : "all");
+    // 检查是否至少启用了一种事件
+    if (!ssl_enabled && !exec_enabled && !bash_enabled) {
+        fprintf(stderr, "❌ Error: All events are disabled. Nothing to monitor.\n");
+        return 1;
+    }
+
+    printf("Claude Trace Monitor\n");
+    printf("  PID: %s\n", target_pid > 0 ? "specified" : "all");
+    printf("  SSL events: %s\n", ssl_enabled ? "enabled" : "disabled");
+    printf("  EXEC events: %s\n", exec_enabled ? "enabled" : "disabled");
+    printf("  BASH events: %s\n", bash_enabled ? "enabled" : "disabled");
 
     // 打开并加载 BPF 程序
     skel = claude_trace_bpf__open_and_load();
@@ -392,25 +478,81 @@ int main(int argc, char **argv) {
 
     int attached_count = 0;
 
-    // 尝试附加到 Node.js 二进制文件 (用于 claude)
-    char *node_path = find_node_binary();
-    if (node_path) {
-        printf("\n");
-        if (attach_ssl_probes(skel, node_path, "Node.js") == 0) {
-            attached_count++;
+    // 附加 SSL 探针（如果启用）
+    if (ssl_enabled) {
+        char *node_path = find_node_binary();
+        if (node_path) {
+            printf("\n");
+            if (attach_ssl_probes(skel, node_path, "Node.js") == 0) {
+                attached_count++;
+            }
+        }
+
+        if (attached_count == 0) {
+            fprintf(stderr, "\n❌ Failed to attach to any SSL library!\n");
+            fprintf(stderr, "💡 Make sure you're running as root: sudo %s\n", argv[0]);
+            if (!node_path) {
+                fprintf(stderr, "💡 Node.js not found at expected paths\n");
+            }
+            // 如果只启用了 SSL 但失败，退出
+            if (!exec_enabled) {
+                goto cleanup;
+            }
+            fprintf(stderr, "⚠️  Continuing with EXEC events only\n");
+            ssl_enabled = 0;  // 标记 SSL 为禁用
+        } else {
+            printf("\n✅ SSL: attached to %d library/binary\n", attached_count);
         }
     }
 
-    if (attached_count == 0) {
-        fprintf(stderr, "\n❌ Failed to attach to any SSL library!\n");
-        fprintf(stderr, "💡 Make sure you're running as root: sudo %s\n", argv[0]);
-        if (!node_path) {
-            fprintf(stderr, "💡 Node.js not found at expected paths\n");
+    // 附加 execve tracepoint（如果启用且指定了 PID）
+    if (exec_enabled) {
+        if (target_pid > 0) {
+            struct bpf_link *exec_link = bpf_program__attach(skel->progs.trace_execve);
+            if (exec_link) {
+                printf("✅ EXEC: command capture enabled for PID %d\n", target_pid);
+            } else {
+                fprintf(stderr, "⚠️  Failed to attach execve tracepoint\n");
+                exec_enabled = 0;  // 标记 EXEC 为禁用
+            }
+        } else {
+            printf("⚠️  EXEC: disabled (requires -p PID to specify target process)\n");
+            exec_enabled = 0;
         }
+    }
+
+    // 附加 bash readline uprobe（如果启用且指定了 PID）
+    if (bash_enabled) {
+        if (target_pid > 0) {
+            // 查找 bash 二进制路径
+            const char *bash_path = "/usr/bin/bash";
+            if (access(bash_path, F_OK) != 0) {
+                bash_path = "/bin/bash";
+            }
+
+            LIBBPF_OPTS(bpf_uprobe_opts, bash_opts);
+            bash_opts.func_name = "readline";
+            bash_opts.retprobe = true;
+
+            struct bpf_link *bash_link = bpf_program__attach_uprobe_opts(
+                skel->progs.bash_readline, -1, bash_path, 0, &bash_opts);
+            if (bash_link) {
+                printf("✅ BASH: readline capture enabled for PID %d descendants\n", target_pid);
+            } else {
+                fprintf(stderr, "⚠️  Failed to attach bash readline uprobe (bash may not have readline symbol)\n");
+                bash_enabled = 0;
+            }
+        } else {
+            printf("⚠️  BASH: disabled (requires -p PID to specify target process)\n");
+            bash_enabled = 0;
+        }
+    }
+
+    // 再次检查是否有任何有效的监控
+    if (!ssl_enabled && !exec_enabled && !bash_enabled) {
+        fprintf(stderr, "❌ No event sources available. Exiting.\n");
         goto cleanup;
     }
-
-    printf("\n✅ Successfully attached to %d library/binary\n", attached_count);
 
     // 如果启用了输出文件,打开 JSON 文件
     if (output_file_enabled && output_filename) {
@@ -419,34 +561,89 @@ int main(int argc, char **argv) {
         }
     }
 
-    // 设置 RingBuffer
-    rb = ring_buffer__new(bpf_map__fd(skel->maps.events), handle_event, NULL, NULL);
-    if (!rb) {
-        fprintf(stderr, "❌ Failed to create ring buffer\n");
-        goto cleanup;
+    // 设置 SSL 事件 RingBuffer（如果启用）
+    if (ssl_enabled) {
+        rb = ring_buffer__new(bpf_map__fd(skel->maps.events), handle_event, NULL, NULL);
+        if (!rb) {
+            fprintf(stderr, "❌ Failed to create SSL ring buffer\n");
+            goto cleanup;
+        }
+    }
+
+    // 设置命令执行事件 RingBuffer（如果启用）
+    if (exec_enabled) {
+        exec_rb = ring_buffer__new(bpf_map__fd(skel->maps.exec_events), handle_exec_event, NULL, NULL);
+        if (!exec_rb) {
+            fprintf(stderr, "❌ Failed to create exec ring buffer\n");
+            goto cleanup;
+        }
+    }
+
+    // 设置 Bash readline 事件 RingBuffer（如果启用）
+    if (bash_enabled) {
+        bash_rb = ring_buffer__new(bpf_map__fd(skel->maps.bash_events), handle_bash_event, NULL, NULL);
+        if (!bash_rb) {
+            fprintf(stderr, "❌ Failed to create bash ring buffer\n");
+            goto cleanup;
+        }
     }
 
     printf("Monitoring... (Ctrl+C to stop)\n");
 
     // 主事件循环
     while (!stop) {
-        err = ring_buffer__poll(rb, 100);
-        if (err == -EINTR) {
-            break;
+        // Poll SSL 事件（如果启用）
+        if (ssl_enabled && rb) {
+            err = ring_buffer__poll(rb, 50);
+            if (err == -EINTR) {
+                break;
+            }
+            if (err < 0) {
+                fprintf(stderr, "❌ Error polling SSL ring buffer: %d\n", err);
+                break;
+            }
         }
-        if (err < 0) {
-            fprintf(stderr, "❌ Error polling ring buffer: %d\n", err);
-            break;
+
+        // Poll 命令执行事件（如果启用）
+        if (exec_enabled && exec_rb) {
+            err = ring_buffer__poll(exec_rb, 50);
+            if (err == -EINTR) {
+                break;
+            }
+            if (err < 0) {
+                fprintf(stderr, "❌ Error polling exec ring buffer: %d\n", err);
+                break;
+            }
+        }
+
+        // Poll Bash readline 事件（如果启用）
+        if (bash_enabled && bash_rb) {
+            err = ring_buffer__poll(bash_rb, 50);
+            if (err == -EINTR) {
+                break;
+            }
+            if (err < 0) {
+                fprintf(stderr, "❌ Error polling bash ring buffer: %d\n", err);
+                break;
+            }
+        }
+
+        // 如果所有都未启用，短暂休眠避免 CPU 空转
+        if (!ssl_enabled && !exec_enabled && !bash_enabled) {
+            usleep(50000);  // 50ms
         }
     }
 
     printf("\n👋 Shutting down...\n");
-    printf("📊 Total: %llu packets, %llu bytes\n", packet_count, total_bytes);
+    printf("📊 Total: %llu SSL packets, %llu bytes, %llu exec commands, %llu bash commands\n",
+           packet_count, total_bytes, exec_count, bash_count);
 
 cleanup:
     // 关闭 JSON 输出文件
     close_json_output();
 
+    ring_buffer__free(bash_rb);
+    ring_buffer__free(exec_rb);
     ring_buffer__free(rb);
     claude_trace_bpf__destroy(skel);
     return 0;
