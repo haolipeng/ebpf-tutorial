@@ -24,7 +24,7 @@ jobs:
           make git clang llvm pkg-config build-essential
 
       - name: build package
-        run:  make build
+        run:  make all
 
       # setup Docker buld action
       - name: Set up Docker Buildx

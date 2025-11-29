@@ -57,7 +57,7 @@ jobs:
         make git clang llvm pkg-config build-essential
 
     - name: build package
-      run:  make build
+      run:  make all
 
     - name: Publish
       if:   github.event_name == 'push' && github.ref == 'refs/heads/master'
