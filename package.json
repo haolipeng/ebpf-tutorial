@@ -1,0 +1,27 @@
+{
+  "name": "ebpf-tutorial",
+  "version": "1.0.0",
+  "description": "eBPF Tutorial - Learn eBPF programming from scratch",
+  "type": "module",
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.5.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/haolipeng/ebpf-tutorial.git"
+  },
+  "keywords": [
+    "ebpf",
+    "bpf",
+    "linux",
+    "kernel",
+    "tutorial"
+  ],
+  "author": "haolipeng",
+  "license": "MIT"
+}

@@ -36,3 +36,9 @@ src/libbpfgo-helloworld/helloworld
 *~
 .vscode/
 .idea/
+
+# Node.js / VitePress
+node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+package-lock.json
