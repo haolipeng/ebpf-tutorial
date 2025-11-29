@@ -24,6 +24,12 @@ features:
     details: 使用 C 和 Go 语言（libbpf / cilium-ebpf）开发 eBPF 程序
 ---
 
+<div class="badges">
+  <a href="https://github.com/haolipeng/ebpf-tutorial/stargazers"><img src="https://img.shields.io/github/stars/haolipeng/ebpf-tutorial?style=flat-square" alt="GitHub Stars"></a>
+  <a href="https://github.com/haolipeng/ebpf-tutorial/network/members"><img src="https://img.shields.io/github/forks/haolipeng/ebpf-tutorial?style=flat-square" alt="GitHub Forks"></a>
+  <a href="https://github.com/haolipeng/ebpf-tutorial/blob/master/LICENSE"><img src="https://img.shields.io/github/license/haolipeng/ebpf-tutorial?style=flat-square" alt="License"></a>
+</div>
+
 ## 课程概览
 
 本教程提供从零基础到高级主题的 eBPF 编程学习路径。
@@ -45,3 +51,15 @@ features:
 - Linux 内核 5.4+（推荐 5.8+）
 - 基本的 C 语言编程知识
 - 了解 Linux 系统调用
+
+<style>
+.badges {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 24px 0;
+}
+.badges img {
+  height: 20px;
+}
+</style>

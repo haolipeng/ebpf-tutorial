@@ -18,7 +18,7 @@ unlink 系统调用的功能是删除一个文件。
 
 https://elixir.bootlin.com/linux/v6.14.5/source/fs/namei.c#L4553
 
-![image-20250508065827896](https://gitee.com/codergeek/picgo-image/raw/master/image/202507131619474.png)
+![Kprobe 架构](/images/lesson2-kprobe-arch.png)
 
 从上述代码可以看出unlink系统调用其内部就是在调用**do_unlinkat**内核函数。该函数接受两个参数：`dfd`（文件描述符）和`name`（文件名结构体指针）。
 
@@ -56,7 +56,7 @@ https://docs.ebpf.io/ebpf-library/libbpf/ebpf/BPF_CORE_READ/
 
 **使用之前：**
 
-![image-20250508072627766](https://gitee.com/codergeek/picgo-image/raw/master/image/202507131619576.png)
+![Kprobe 流程](/images/lesson2-kprobe-flow.png)
 
 **使用之后：**
 

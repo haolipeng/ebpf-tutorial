@@ -24,6 +24,12 @@ features:
     details: Develop eBPF programs using both C and Go with libbpf and cilium/ebpf
 ---
 
+<div class="badges">
+  <a href="https://github.com/haolipeng/ebpf-tutorial/stargazers"><img src="https://img.shields.io/github/stars/haolipeng/ebpf-tutorial?style=flat-square" alt="GitHub Stars"></a>
+  <a href="https://github.com/haolipeng/ebpf-tutorial/network/members"><img src="https://img.shields.io/github/forks/haolipeng/ebpf-tutorial?style=flat-square" alt="GitHub Forks"></a>
+  <a href="https://github.com/haolipeng/ebpf-tutorial/blob/master/LICENSE"><img src="https://img.shields.io/github/license/haolipeng/ebpf-tutorial?style=flat-square" alt="License"></a>
+</div>
+
 ## Course Overview
 
 This tutorial provides a step-by-step guide to learning eBPF programming from zero to advanced topics.
@@ -38,9 +44,22 @@ This tutorial provides a step-by-step guide to learning eBPF programming from ze
 - **Lesson 10**: BTF and CO-RE for portable eBPF
 - **Lesson 11-12**: TC Ingress and Egress
 - **Lesson 13**: SSL/TLS traffic analysis
+- **Lesson 14-17**: Practical projects (HTTPS monitoring, process tracing)
 
 ### Prerequisites
 
 - Linux kernel 5.4+ (5.8+ recommended)
 - Basic C programming knowledge
 - Understanding of Linux system calls
+
+<style>
+.badges {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 24px 0;
+}
+.badges img {
+  height: 20px;
+}
+</style>

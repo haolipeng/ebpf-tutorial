@@ -17,7 +17,9 @@ export default defineConfig({
       themeConfig: {
         nav: [
           { text: 'Home', link: '/' },
-          { text: 'Guide', link: '/guide/lesson-1-helloworld' }
+          { text: 'Guide', link: '/guide/lesson-1-helloworld' },
+          { text: 'Contributing', link: '/contributing' },
+          { text: 'Changelog', link: '/changelog' }
         ],
         sidebar: {
           '/guide/': [
@@ -48,7 +50,8 @@ export default defineConfig({
               text: '🌐 Network Programming',
               items: [
                 { text: 'Lesson 11: TC Ingress', link: '/guide/lesson-11-tc-ingress' },
-                { text: 'Lesson 12: TC Egress', link: '/guide/lesson-12-tc-egress' }
+                { text: 'Lesson 12: TC Egress', link: '/guide/lesson-12-tc-egress' },
+                { text: 'Lesson 17: XDP Filter', link: '/guide/lesson-17-xdp-filter' }
               ]
             },
             {
@@ -57,6 +60,14 @@ export default defineConfig({
                 { text: 'Lesson 6: Go Development', link: '/guide/lesson-6-golang-develop' },
                 { text: 'Lesson 10: BTF', link: '/guide/lesson-10-btf' },
                 { text: 'Lesson 13: SSL Sniff', link: '/guide/lesson-13-ssl-sniff' }
+              ]
+            },
+            {
+              text: '🐝 Practical Projects',
+              items: [
+                { text: 'Lesson 14: HTTPS Traffic Monitor', link: '/guide/lesson-14-ssl-traffic-monitor' },
+                { text: 'Lesson 15: Exec Command Monitor', link: '/guide/lesson-15-exec-command-monitor' },
+                { text: 'Lesson 16: Bash Readline Monitor', link: '/guide/lesson-16-bash-readline-monitor' }
               ]
             }
           ]
@@ -70,7 +81,9 @@ export default defineConfig({
       themeConfig: {
         nav: [
           { text: '首页', link: '/zh/' },
-          { text: '教程', link: '/zh/guide/lesson-1-helloworld' }
+          { text: '教程', link: '/zh/guide/lesson-1-helloworld' },
+          { text: '贡献指南', link: '/zh/contributing' },
+          { text: '更新日志', link: '/zh/changelog' }
         ],
         sidebar: {
           '/zh/guide/': [

@@ -16,7 +16,7 @@ The `unlink` system call is used to delete a file.
 
 Reference: https://elixir.bootlin.com/linux/v6.14.5/source/fs/namei.c#L4553
 
-![image-20250508065827896](https://gitee.com/codergeek/picgo-image/raw/master/image/202507131619474.png)
+![Kprobe Architecture](/images/lesson2-kprobe-arch.png)
 
 From the code above, we can see that the `unlink` system call internally invokes the **do_unlinkat** kernel function. This function accepts two parameters: `dfd` (file descriptor) and `name` (pointer to filename structure).
 
@@ -48,7 +48,7 @@ https://docs.ebpf.io/ebpf-library/libbpf/ebpf/BPF_CORE_READ/
 
 **Before using the macro:**
 
-![image-20250508072627766](https://gitee.com/codergeek/picgo-image/raw/master/image/202507131619576.png)
+![Kprobe Flow](/images/lesson2-kprobe-flow.png)
 
 **After using the macro:**
 
