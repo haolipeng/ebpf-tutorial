@@ -2,11 +2,11 @@
 
 This tutorial uses https://github.com/haolipeng/libbpf-ebpf-beginer
 
-![image-20250502173859376](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021739894.png)
+![eBPF Architecture](/images/lesson1-ebpf-arch.png)
 
 This template naturally integrates libbpf, bpftool, vmlinux, and other essential components for developing eBPF programs. As eBPF developers, we only need to focus on the src source code directory.
 
-![image-20250502174137823](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021741038.png)
+![eBPF Workflow](/images/lesson1-ebpf-workflow.png)
 
 eBPF code is divided into kernel space and user space components.
 
@@ -85,7 +85,7 @@ sudo bpftrace -l 'tracepoint:syscalls:*'
 
 Using bpftrace to view the sys_enter_write function tracepoint, as shown below:
 
-![image-20250502181548461](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021815671.png)
+![eBPF Components](/images/lesson1-ebpf-components.png)
 
 # 3. eBPF User Space Programming
 
@@ -188,15 +188,15 @@ Execute directly in the project root directory:
 
 **1. Project compilation - libbpf library compilation**
 
-![image-20250502174937954](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021749111.png)
+![Hello World Code](/images/lesson1-helloworld-code.png)
 
 **2. Project compilation - bpftool library compilation**
 
-![image-20250502175105526](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021751776.png)
+![BPF Program](/images/lesson1-bpf-program.png)
 
 **3. Project compilation - eBPF program code compilation**
 
-![image-20250502175158625](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021752029.png)
+![User Program](/images/lesson1-user-program.png)
 
 After successful compilation, an executable program named `helloworld` will be generated in the src directory.
 
@@ -204,11 +204,11 @@ After successful compilation, an executable program named `helloworld` will be g
 
 After running the program in the src directory, you can see the program running normally.
 
-![image-20250502180332591](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021803504.png)
+![Run Output](/images/lesson1-run-output.png)
 
 Check the process PID of the helloworld program, which is 17659:
 
-![image-20250502180224071](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021802580.png)
+![bpftool](/images/lesson1-bpftool.png)
 
 Where can you view the output results of the eBPF program?
 

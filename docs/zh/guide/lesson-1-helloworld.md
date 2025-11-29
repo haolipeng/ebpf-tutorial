@@ -2,11 +2,11 @@
 
 采用的https://github.com/haolipeng/libbpf-ebpf-beginer
 
-![image-20250502173859376](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021739894.png)
+![eBPF 架构](/images/lesson1-ebpf-arch.png)
 
 里面天然的引入了libbpf、bpftool、vmlinux等一系列开发ebpf程序的必备组件，我们作为编写ebpf代码的人，只需要关注src源代码目录即可。
 
-![image-20250502174137823](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021741038.png)
+![eBPF 工作流程](/images/lesson1-ebpf-workflow.png)
 
 ebpf的代码是分为内核态和用户态的。
 
@@ -95,7 +95,7 @@ sudo bpftrace -l 'tracepoint:syscalls:*'
 
 使用bpftrace查看sys_enter_write这个函数跟踪点的情况，如下图所示：
 
-![image-20250502181548461](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021815671.png)
+![eBPF 组件](/images/lesson1-ebpf-components.png)
 
 
 
@@ -216,15 +216,15 @@ cleanup:
 
 **1、项目编译之libbpf库编译**
 
-![image-20250502174937954](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021749111.png)
+![Hello World 代码](/images/lesson1-helloworld-code.png)
 
 **2、项目编译之bpftool库编译**
 
-![image-20250502175105526](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021751776.png)
+![BPF 程序](/images/lesson1-bpf-program.png)
 
 **3、项目编译之ebpf程序代码编译**
 
-![image-20250502175158625](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021752029.png)
+![用户程序](/images/lesson1-user-program.png)
 
 编译成功后，在src目录会生成名为helloworld的可执行程序
 
@@ -232,13 +232,13 @@ cleanup:
 
 在src目录下运行程序后，可以看到程序运行正常。
 
-![image-20250502180332591](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021803504.png)
+![运行输出](/images/lesson1-run-output.png)
 
 
 
 查看helloworld程序的进程pid为17659
 
-![image-20250502180224071](https://gitee.com/codergeek/picgo-image/raw/master/image/202505021802580.png)
+![bpftool](/images/lesson1-bpftool.png)
 
 在哪里查看ebpf程序的输出结果呢？
 
