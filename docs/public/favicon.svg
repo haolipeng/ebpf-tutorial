@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- eBPF 蜜蜂风格图标 - 六边形 + 蜜蜂 -->
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- 六边形背景 -->
+  <polygon points="50,5 90,27.5 90,72.5 50,95 10,72.5 10,27.5" fill="url(#grad)" stroke="#92400e" stroke-width="2"/>
+  <!-- 蜜蜂身体 -->
+  <ellipse cx="50" cy="52" rx="20" ry="25" fill="#fbbf24"/>
+  <!-- 蜜蜂条纹 -->
+  <rect x="30" y="42" width="40" height="6" fill="#1f2937"/>
+  <rect x="30" y="54" width="40" height="6" fill="#1f2937"/>
+  <rect x="30" y="66" width="40" height="6" fill="#1f2937"/>
+  <!-- 蜜蜂头 -->
+  <circle cx="50" cy="30" r="12" fill="#1f2937"/>
+  <!-- 蜜蜂眼睛 -->
+  <circle cx="45" cy="28" r="3" fill="#fbbf24"/>
+  <circle cx="55" cy="28" r="3" fill="#fbbf24"/>
+  <!-- 触角 -->
+  <line x1="45" y1="20" x2="40" y2="12" stroke="#1f2937" stroke-width="2" stroke-linecap="round"/>
+  <line x1="55" y1="20" x2="60" y2="12" stroke="#1f2937" stroke-width="2" stroke-linecap="round"/>
+</svg>

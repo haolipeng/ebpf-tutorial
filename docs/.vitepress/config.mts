@@ -6,7 +6,7 @@ export default defineConfig({
   base: '/ebpf-tutorial/',
 
   head: [
-    ['link', { rel: 'icon', href: '/ebpf-tutorial/favicon.ico' }]
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/ebpf-tutorial/favicon.svg' }]
   ],
 
   // 多语言配置
@@ -22,13 +22,13 @@ export default defineConfig({
         sidebar: {
           '/guide/': [
             {
-              text: 'Getting Started',
+              text: '🚀 Getting Started',
               items: [
                 { text: 'Lesson 1: Hello World', link: '/guide/lesson-1-helloworld' }
               ]
             },
             {
-              text: 'Hook Mechanisms',
+              text: '🎯 Hook Mechanisms',
               items: [
                 { text: 'Lesson 2: Kprobe', link: '/guide/lesson-2-kprobe' },
                 { text: 'Lesson 3: Uprobe', link: '/guide/lesson-3-uprobe' },
@@ -37,7 +37,7 @@ export default defineConfig({
               ]
             },
             {
-              text: 'Data Structures',
+              text: '📊 Data Structures',
               items: [
                 { text: 'Lesson 4: User Map', link: '/guide/lesson-4-user-map' },
                 { text: 'Lesson 5: Kernel User Map', link: '/guide/lesson-5-kernel-user-map' },
@@ -45,14 +45,14 @@ export default defineConfig({
               ]
             },
             {
-              text: 'Network Programming',
+              text: '🌐 Network Programming',
               items: [
                 { text: 'Lesson 11: TC Ingress', link: '/guide/lesson-11-tc-ingress' },
                 { text: 'Lesson 12: TC Egress', link: '/guide/lesson-12-tc-egress' }
               ]
             },
             {
-              text: 'Advanced Topics',
+              text: '🔬 Advanced Topics',
               items: [
                 { text: 'Lesson 6: Go Development', link: '/guide/lesson-6-golang-develop' },
                 { text: 'Lesson 10: BTF', link: '/guide/lesson-10-btf' },
@@ -75,13 +75,13 @@ export default defineConfig({
         sidebar: {
           '/zh/guide/': [
             {
-              text: '快速开始',
+              text: '🚀 快速开始',
               items: [
                 { text: 'Lesson 1: Hello World', link: '/zh/guide/lesson-1-helloworld' }
               ]
             },
             {
-              text: 'Hook 机制',
+              text: '🎯 Hook 机制',
               items: [
                 { text: 'Lesson 2: Kprobe', link: '/zh/guide/lesson-2-kprobe' },
                 { text: 'Lesson 3: Uprobe', link: '/zh/guide/lesson-3-uprobe' },
@@ -90,7 +90,7 @@ export default defineConfig({
               ]
             },
             {
-              text: '数据结构',
+              text: '📊 数据结构',
               items: [
                 { text: 'Lesson 4: 用户态 Map', link: '/zh/guide/lesson-4-user-map' },
                 { text: 'Lesson 5: 内核态 Map', link: '/zh/guide/lesson-5-kernel-user-map' },
@@ -98,7 +98,7 @@ export default defineConfig({
               ]
             },
             {
-              text: '网络编程',
+              text: '🌐 网络编程',
               items: [
                 { text: 'Lesson 11: TC Ingress', link: '/zh/guide/lesson-11-tc-ingress' },
                 { text: 'Lesson 12: TC Egress', link: '/zh/guide/lesson-12-tc-egress' },
@@ -106,7 +106,7 @@ export default defineConfig({
               ]
             },
             {
-              text: '高级主题',
+              text: '🔬 高级主题',
               items: [
                 { text: 'Lesson 6: Go 语言开发', link: '/zh/guide/lesson-6-golang-develop' },
                 { text: 'Lesson 10: BTF', link: '/zh/guide/lesson-10-btf' },
@@ -114,7 +114,7 @@ export default defineConfig({
               ]
             },
             {
-              text: '实战项目',
+              text: '🐝 实战项目',
               items: [
                 { text: 'Lesson 14: HTTPS 流量监控', link: '/zh/guide/lesson-14-ssl-traffic-monitor' },
                 { text: 'Lesson 15: 进程命令监控', link: '/zh/guide/lesson-15-exec-command-monitor' },
@@ -134,6 +134,9 @@ export default defineConfig({
   },
 
   themeConfig: {
+    // Logo
+    logo: '/favicon.svg',
+
     // 搜索
     search: {
       provider: 'local',
