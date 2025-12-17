@@ -1,5 +1,6 @@
 # 环境配置
 .direnv
+.spec-workflow
 
 # 构建输出目录
 .output/
