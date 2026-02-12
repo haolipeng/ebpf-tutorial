@@ -1,27 +1,56 @@
-# 一、ebpf工程化的模板
+# Lesson 1: eBPF Hello World
 
-采用的https://github.com/haolipeng/libbpf-ebpf-beginer
+## 一、什么是 eBPF？
 
-![eBPF 架构](/images/lesson1-ebpf-arch.png)
-
-里面天然的引入了libbpf、bpftool、vmlinux等一系列开发ebpf程序的必备组件，我们作为编写ebpf代码的人，只需要关注src源代码目录即可。
-
-![eBPF 工作流程](/images/lesson1-ebpf-workflow.png)
-
-ebpf的代码是分为内核态和用户态的。
-
-其中helloworld.bpf.c为ebpf的内核态文件，helloworld.c为ebpf的用户态文件。
+eBPF（extended Berkeley Packet Filter）是一项革命性的内核技术，允许在内核中安全地运行用户定义的程序，无需修改内核源码或加载内核模块。
 
 
 
-**为什么不采用eunomia-bpf开发工具呢？**
+**核心价值：**
 
-eunomia-bpf在用户态屏蔽了一些细节，反正有些bpf的知识点也是必须学的，所以索性大家就直面困难吧。
+- **可观测性**：追踪系统调用、函数执行、性能分析
+- **网络**：高性能数据包处理、负载均衡、防火墙
+- **安全**：运行时安全监控、异常行为检测
 
+eBPF 程序分为**内核态**和**用户态**两部分：内核态程序运行在内核中捕获事件，用户态程序负责加载、管理和处理数据。
 
-# 二、ebpf内核态编码
+## 二、环境准备
 
+### 2.1 系统要求
+
+**推荐使用 Ubuntu 24.04**（内核 6.8+），可体验更完整的 eBPF 特性。
+
+```bash
+# 检查内核版本
+uname -r
 ```
+
+### 2.2 安装依赖
+
+```bash
+sudo apt update
+sudo apt install -y clang llvm libelf-dev libbpf-dev linux-headers-$(uname -r) \
+    build-essential pkg-config zlib1g-dev
+```
+
+### 2.3 克隆项目
+
+```bash
+git clone --recursive https://github.com/haolipeng/libbpf-ebpf-beginer.git
+cd libbpf-ebpf-beginer
+```
+
+> **注意**：`--recursive` 参数会同时拉取 libbpf、bpftool 等子模块。
+
+下载下来的项目概况如下图所示：
+
+![eBPF 架构](../../public/images/lesson1-ebpf-arch.png)
+
+## 三、eBPF 内核态编码
+
+内核态代码文件：`src/helloworld/helloworld.bpf.c`
+
+```c
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
@@ -29,231 +58,265 @@ eunomia-bpf在用户态屏蔽了一些细节，反正有些bpf的知识点也是
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-//定义一个u32类型
+// 类型定义
 typedef unsigned int u32;
 typedef int pid_t;
 
-//创建一个数量为1的数组，用于在用户态和内核态之间传递值
+// 创建 BPF Map，用于用户态和内核态之间传递数据
 struct {
-	__uint(type, BPF_MAP_TYPE_ARRAY);
-	__uint(max_entries, 1);
-	__type(key, u32);
-	__type(value, pid_t);
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, u32);
+    __type(value, pid_t);
 } my_pid_map SEC(".maps");
 
-//定义一个tracepoint，当进程执行write系统调用时，触发该tracepoint
+// 挂载到 write 系统调用的入口 tracepoint
 SEC("tp/syscalls/sys_enter_write")
 int handle_tp(void *ctx)
 {
-	u32 index = 0;
-	pid_t pid = bpf_get_current_pid_tgid() >> 32;
-	pid_t *my_pid = bpf_map_lookup_elem(&my_pid_map, &index);
+    u32 index = 0;
+    // 获取当前进程 PID（高32位是PID，低32位是TID）
+    pid_t pid = bpf_get_current_pid_tgid() >> 32;
 
-	if (!my_pid || *my_pid != pid)
-		return 1;
+    // 从 Map 中读取目标 PID
+    pid_t *my_pid = bpf_map_lookup_elem(&my_pid_map, &index);
 
-	bpf_printk("BPF triggered from PID %d.\n", pid);
+    // 只处理目标进程的 write 调用
+    if (!my_pid || *my_pid != pid)
+        return 1;
 
-	return 0;
+    bpf_printk("BPF triggered from PID %d.\n", pid);
+
+    return 0;
 }
-
-
 ```
 
-**疑问1：SEC是干什么的呢？**
+### 代码解析
 
-1. 定义 eBPF 程序的类型和加载位置
-2. 指定程序应该被附加到内核的哪个挂钩点
+| 代码 | 说明 |
+|------|------|
+| `#include "vmlinux.h"` | 包含内核数据结构定义（由 bpftool 生成） |
+| `SEC("license")` | 声明许可证，GPL 兼容才能使用部分内核函数 |
+| `SEC(".maps")` | 定义 BPF Map，用于内核态与用户态数据共享 |
+| `SEC("tp/syscalls/sys_enter_write")` | 挂载点：write 系统调用入口的 tracepoint |
+| `bpf_get_current_pid_tgid()` | 获取当前进程/线程 ID，右移 32 位取 PID |
+| `bpf_map_lookup_elem()` | 从 Map 中查找元素 |
+| `bpf_printk()` | 输出调试信息到 trace_pipe |
 
+我们能看到挂载点为"tp/syscalls/sys_enter_write"
 
+### 如何查找可用的挂载点？
 
-**疑问2：SEC("tp/syscalls/sys_enter_write")如何解释呢？**
+使用 `bpftrace` 工具查询：
 
-在 SEC("tp/syscalls/sys_enter_write") 中：
-
-- tp 表示这是一个 tracepoint 类型的 BPF 程序（也有kprobe和uprobe类型的程序，以后我们会学到）
-
-- syscalls 是 tracepoint 的类别/子系统
-
-- sys_enter_write 是具体的 tracepoint 跟踪点名称，表示捕获 write 系统调用的入口点
-
-这个定义意味着该 BPF 程序会在每次发生 write 系统调用时被触发执行，允许你监控和分析系统中所有的写操作。
-
-
-
-**疑问3：在写代码时如何使用查询这个挂载点呢？**
-
-给你推荐一个更好用的 eBPF 工具  bpftrace。
-
-```
-# 查询所有内核插桩和跟踪点
-sudo bpftrace -l
-
-# 使用通配符查询所有的系统调用跟踪点
+```bash
+# 查询所有系统调用 tracepoint
 sudo bpftrace -l 'tracepoint:syscalls:*'
+
+# 查询 write 相关
+sudo bpftrace -l 'tracepoint:syscalls:*write*'
 ```
 
-使用bpftrace查看sys_enter_write这个函数跟踪点的情况，如下图所示：
-
-![eBPF 组件](/images/lesson1-ebpf-components.png)
-
-
-
-# 三、ebpf用户态编码
+其命令执行结果如下：
 
 ```
+root@ebpf-machine:/home/work/ebpf-tutorial/docs/zh/guide# bpftrace -l 'tracepoint:syscalls:*write*'
+tracepoint:syscalls:sys_enter_process_vm_writev
+tracepoint:syscalls:sys_enter_pwrite64
+tracepoint:syscalls:sys_enter_pwritev
+tracepoint:syscalls:sys_enter_pwritev2
+tracepoint:syscalls:sys_enter_write
+tracepoint:syscalls:sys_enter_writev
+tracepoint:syscalls:sys_exit_process_vm_writev
+tracepoint:syscalls:sys_exit_pwrite64
+tracepoint:syscalls:sys_exit_pwritev
+tracepoint:syscalls:sys_exit_pwritev2
+tracepoint:syscalls:sys_exit_write
+tracepoint:syscalls:sys_exit_writev
+root@ebpf-machine:/home/work/ebpf-tutorial/docs/zh/guide# 
+```
+
+
+
+## 四、eBPF 用户态编码
+
+用户态代码文件：`src/helloworld/helloworld.c`
+
+```c
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
 #include "helloworld.skel.h"
 
+// libbpf 日志回调函数
 static int libbpf_print_fn(enum libbpf_print_level level, const char *format, va_list args)
 {
-	return vfprintf(stderr, format, args);
+    return vfprintf(stderr, format, args);
 }
+
 int main(int argc, char **argv)
 {
-	struct helloworld_bpf *skel;
-	int err;
-	pid_t pid;
-	unsigned index = 0;
+    struct helloworld_bpf *skel;
+    int err;
+    pid_t pid;
+    unsigned index = 0;
 
-	//设置libbpf的严格模式
-	libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
+    // 1. 设置 libbpf 严格模式和日志回调
+    libbpf_set_strict_mode(LIBBPF_STRICT_ALL);
+    libbpf_set_print(libbpf_print_fn);
 
-	//设置libbpf的打印函数
-	libbpf_set_print(libbpf_print_fn);
+    // 2. 打开 BPF 程序
+    skel = helloworld_bpf__open();
+    if (!skel) {
+        fprintf(stderr, "Failed to open BPF skeleton\n");
+        return 1;
+    }
 
-	//打开BPF程序，返回skel骨架的对象
-	skel = helloworld_bpf__open();
-	if (!skel) {
-		fprintf(stderr, "Failed to open and load BPF skeleton\n");
-		return 1;
-	}
+    // 3. 加载并验证 BPF 程序
+    err = helloworld_bpf__load(skel);
+    if (err) {
+        fprintf(stderr, "Failed to load BPF skeleton\n");
+        goto cleanup;
+    }
 
-	//加载并验证BPF程序
-	err = helloworld_bpf__load(skel);
-	if (err) {
-		fprintf(stderr, "Failed to load and verify BPF skeleton\n");
-		goto cleanup;
-	}
+    // 4. 将当前进程 PID 写入 Map，让内核态只追踪本进程
+    pid = getpid();
+    err = bpf_map__update_elem(skel->maps.my_pid_map, &index, sizeof(index),
+                                &pid, sizeof(pid_t), BPF_ANY);
+    if (err < 0) {
+        fprintf(stderr, "Error updating map: %s\n", strerror(-err));
+        goto cleanup;
+    }
 
-	//确保BPF程序只处理我们进程的write()系统调用
-	pid = getpid();
-	err = bpf_map__update_elem(skel->maps.my_pid_map, &index, sizeof(index), &pid, sizeof(pid_t), BPF_ANY);
-	if (err < 0) {
-		fprintf(stderr, "Error updating map with pid: %s\n", strerror(err));
-		goto cleanup;
-	}
+    // 5. 附加 BPF 程序到挂载点
+    err = helloworld_bpf__attach(skel);
+    if (err) {
+        fprintf(stderr, "Failed to attach BPF skeleton\n");
+        goto cleanup;
+    }
 
-	//将BPF程序附加到tracepoint上
-	err = helloworld_bpf__attach(skel);
-	if (err) {
-		fprintf(stderr, "Failed to attach BPF skeleton\n");
-		goto cleanup;
-	}
-
-	//运行成功后，打印tracepoint的输出日志
-	printf("Successfully started!\n");
-	system("sudo cat /sys/kernel/debug/tracing/trace_pipe");
+    // 6. 读取 trace_pipe 输出
+    printf("Successfully started! Reading trace_pipe...\n");
+    system("sudo cat /sys/kernel/debug/tracing/trace_pipe");
 
 cleanup:
-	//销毁BPF程序
-	helloworld_bpf__destroy(skel);
-
-	return err < 0 ? -err : 0;
+    // 7. 清理资源
+    helloworld_bpf__destroy(skel);
+    return err < 0 ? -err : 0;
 }
-
 ```
 
-用户态编写ebpf代码的流程是固定的套路：
+### Skeleton 机制说明
 
-**1、包含必要的头文件**
- 包含 eBPF 相关的头文件,如 `<bpf/libbpf.h>` 以及自动生成的 BPF 框架头文件,例如示例代码中的 `"helloworld.skel.h"`。
+`helloworld.skel.h` 是编译时自动生成的"骨架"文件，提供了类型安全的 API：
 
-比如我的用户态的文件名helloworld.c，内核态的文件名helloworld.bpf.c，那么生成的skel框架的头文件名称为helloworld.skel.h
+| API | 功能 |
+|-----|------|
+| `helloworld_bpf__open()` | 打开 BPF 对象 |
+| `helloworld_bpf__load()` | 加载到内核并验证 |
+| `helloworld_bpf__attach()` | 附加到挂载点 |
+| `helloworld_bpf__destroy()` | 销毁并释放资源 |
+| `skel->maps.my_pid_map` | 访问定义的 Map |
 
-，不仅如此，包括其内部的所有api，都是和helloworld名称相关的。
+### 用户态程序流程
 
+```
+open() → load() → update_map() → attach() → 运行 → destroy()
+```
 
+## 五、编译与运行
 
-**2、设置 libbpf 库的配置**
- 通常会设置 libbpf 的严格模式和打印函数,以方便调试和错误处理。示例代码中使用了 `libbpf_set_strict_mode(LIBBPF_STRICT_ALL)` 和 `libbpf_set_print(libbpf_print_fn)` 完成这一步骤。
+### 5.1 编译
 
+```bash
+# 进入项目根目录
+cd libbpf-ebpf-beginer
 
+# 首次编译：构建 libbpf 和 bpftool
+make prebuild
 
-**3、打开 BPF 对象**
- 使用 `<object>_bpf__open()` 函数打开自动生成的 BPF 框架头文件中定义的 BPF 对象。示例代码中使用 `helloworld_bpf__open()` 完成这一步骤。
+# 编译 helloworld 示例
+make helloworld
+```
 
+编译成功后，可执行文件位于 `src/helloworld/helloworld`。
 
+### 5.2 运行
 
-**3、加载并验证 BPF 程序**
- 调用 `<object>_bpf__load(skel)` 函数加载并验证 BPF 程序。示例代码中使用 `helloworld_bpf__load(skel)` 完成这一步骤。
+```bash
+# 需要 root 权限
+sudo ./src/helloworld/helloworld
+```
 
+### 5.3 验证输出
 
+程序运行后会显示：
 
-**4、附加 BPF 程序到某个挂载点**
- 调用 `<object>_bpf__attach(skel)` 函数将 BPF 程序附加到指定的事件源上,如 kprobe、uprobe、tracepoint 等。示例代码中使用 `helloworld_bpf__attach(skel)` 将 BPF 程序附加到 tracepoint 上。
+```
+Successfully started! Reading trace_pipe...
+```
 
+然后每当程序执行 write 系统调用时，会输出类似：
 
+```
+<...>-12345  [001] d... 12345.678901: bpf_trace_printk: BPF triggered from PID 12345.
+```
 
-**5、触发事件并观察输出**
- 执行一些操作以触发附加的 BPF 程序,并观察输出结果。示例代码中通过执行 `system("sudo cat /sys/kernel/debug/tracing/trace_pipe")` 来查看 tracepoint 的输出日志。
+### 5.4 使用 bpftool 验证
 
+在另一个终端查看已加载的 BPF 程序：
 
+```bash
+sudo bpftool prog list
+sudo bpftool map list
+```
 
-**6、清理和释放资源**
- 在程序退出前,调用 `<object>_bpf__destroy(skel)` 函数销毁并释放 BPF 对象。示例代码中使用 `helloworld_bpf__destroy(skel)` 完成这一步骤。
+## 六、常见问题 FAQ
 
+### Q1: 编译报错 "vmlinux.h: No such file"
 
+**原因**：未生成 vmlinux.h 文件
 
-# 四、编译执行并验证结果
+**解决**：
+```bash
+make prebuild
+```
 
-## 4、1 编译步骤
+### Q2: 运行报错 "Operation not permitted"
 
-直接在项目的根目录上（我的代码路径为）
+**原因**：权限不足
 
-**1、项目编译之libbpf库编译**
+**解决**：使用 `sudo` 运行程序
 
-![Hello World 代码](/images/lesson1-helloworld-code.png)
+### Q3: 运行报错 "libbpf: failed to find BTF"
 
-**2、项目编译之bpftool库编译**
+**原因**：内核未启用 BTF 支持
 
-![BPF 程序](/images/lesson1-bpf-program.png)
+**解决**：
+```bash
+# 检查 BTF 是否启用
+ls /sys/kernel/btf/vmlinux
 
-**3、项目编译之ebpf程序代码编译**
+# 如不存在，需要升级内核或安装支持 BTF 的内核
+```
 
-![用户程序](/images/lesson1-user-program.png)
+### Q4: trace_pipe 没有输出
 
-编译成功后，在src目录会生成名为helloworld的可执行程序
+**原因**：可能是 PID 过滤导致
 
-## 4、2 运行结果
+**排查**：
+```bash
+# 直接查看 trace_pipe（会显示所有 eBPF 输出）
+sudo cat /sys/kernel/debug/tracing/trace_pipe
+```
 
-在src目录下运行程序后，可以看到程序运行正常。
+### Q5: 如何退出程序？
 
-![运行输出](/images/lesson1-run-output.png)
+按 `Ctrl+C` 终止程序。
 
+---
 
-
-查看helloworld程序的进程pid为17659
-
-![bpftool](/images/lesson1-bpftool.png)
-
-在哪里查看ebpf程序的输出结果呢？
-
-
-
-# 五、相关资料
-
-开箱即用的虚拟机
-
-或者容器环境。
-
-
-
-项目源代码地址：
-
-https://github.com/haolipeng/libbpf-ebpf-beginer/blob/master/src/helloworld.bpf.c
-
-https://github.com/haolipeng/libbpf-ebpf-beginer/blob/master/src/helloworld.c
+**源代码地址**：
+- [helloworld.bpf.c](https://github.com/haolipeng/libbpf-ebpf-beginer/blob/master/src/helloworld/helloworld.bpf.c)
+- [helloworld.c](https://github.com/haolipeng/libbpf-ebpf-beginer/blob/master/src/helloworld/helloworld.c)

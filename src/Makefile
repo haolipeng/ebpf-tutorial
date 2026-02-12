@@ -26,7 +26,8 @@ SUBDIRS = \
 	tc_egress \
 	xdp_filter \
 	ssl_write \
-	trace_claude \
+	claude_trace \
+	percpu_array \
 	benchmark
 
 # Go 语言示例 (需要单独构建，参见各自目录的 README)
