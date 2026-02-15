@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
-// percpu_array eBPF 示例 - 用户空间程序
-// 演示如何使用 BPF_MAP_TYPE_PERCPU_ARRAY 规避 512B 栈限制
+// stack_limit_bypass eBPF 示例 - 用户空间程序
+// 演示如何使用 Per-CPU Array 规避 eBPF 512B 栈限制
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,7 +11,7 @@
 #include <sys/resource.h>
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
-#include "percpu_array.skel.h"
+#include "stack_limit_bypass.skel.h"
 
 // 与内核程序保持一致的常量定义
 #define TASK_COMM_LEN   16
@@ -31,18 +31,6 @@ struct exec_event {
     char filename[MAX_FILENAME];
     char args[MAX_ARGS_LEN];
     char env_path[MAX_ENV_LEN];
-};
-
-// 文件打开事件结构体
-struct file_open_event {
-    __u32 pid;
-    __u32 uid;
-    __u64 timestamp;
-    int flags;
-    int mode;
-    char comm[TASK_COMM_LEN];
-    char filename[MAX_FILENAME];
-    char cwd[MAX_FILENAME];
 };
 
 static volatile sig_atomic_t exiting = 0;
@@ -85,26 +73,8 @@ static int handle_exec_event(void *ctx, void *data, size_t data_sz)
     return 0;
 }
 
-// 处理文件打开事件
-static int handle_file_event(void *ctx, void *data, size_t data_sz)
-{
-    struct file_open_event *e = data;
-    char time_buf[16];
-
-    // 过滤掉一些常见的噪音
-    if (strstr(e->filename, "/proc/") || strstr(e->filename, "/sys/"))
-        return 0;
-
-    format_timestamp(e->timestamp, time_buf, sizeof(time_buf));
-
-    printf("[FILE] %s | PID: %-6u UID: %-5u Comm: %-16s File: %s\n",
-           time_buf, e->pid, e->uid, e->comm, e->filename);
-
-    return 0;
-}
-
 // 打印 Per-CPU 统计信息
-static void print_percpu_stats(struct percpu_array_bpf *skel)
+static void print_percpu_stats(struct stack_limit_bypass_bpf *skel)
 {
     int fd = bpf_map__fd(skel->maps.cpu_event_count);
     __u32 key = 0;
@@ -151,38 +121,21 @@ static void print_usage(const char *prog)
     printf("  2. 利用 Per-CPU 特性避免并发竞争\n");
     printf("\n");
     printf("选项:\n");
-    printf("  -e    只监控进程执行事件 (execve)\n");
-    printf("  -f    只监控文件打开事件 (openat)\n");
-    printf("  -a    监控所有事件 (默认)\n");
     printf("  -s    显示 Per-CPU 统计信息\n");
     printf("  -h    显示此帮助信息\n");
 }
 
 int main(int argc, char **argv)
 {
-    struct percpu_array_bpf *skel;
-    struct ring_buffer *exec_rb = NULL;
-    struct ring_buffer *file_rb = NULL;
+    struct stack_limit_bypass_bpf *skel;
+    struct ring_buffer *rb = NULL;
     int err;
     int opt;
-    int monitor_exec = 1, monitor_file = 1;
     int show_stats = 0;
 
     // 解析命令行参数
-    while ((opt = getopt(argc, argv, "efash")) != -1) {
+    while ((opt = getopt(argc, argv, "sh")) != -1) {
         switch (opt) {
-        case 'e':
-            monitor_exec = 1;
-            monitor_file = 0;
-            break;
-        case 'f':
-            monitor_exec = 0;
-            monitor_file = 1;
-            break;
-        case 'a':
-            monitor_exec = 1;
-            monitor_file = 1;
-            break;
         case 's':
             show_stats = 1;
             break;
@@ -203,45 +156,33 @@ int main(int argc, char **argv)
     libbpf_set_print(libbpf_print_fn);
 
     // 打开 BPF 对象
-    skel = percpu_array_bpf__open();
+    skel = stack_limit_bypass_bpf__open();
     if (!skel) {
         fprintf(stderr, "打开 BPF 对象失败\n");
         return 1;
     }
 
     // 加载并验证 BPF 程序
-    err = percpu_array_bpf__load(skel);
+    err = stack_limit_bypass_bpf__load(skel);
     if (err) {
         fprintf(stderr, "加载 BPF 程序失败: %d\n", err);
         goto cleanup;
     }
 
     // 附加 BPF 程序
-    err = percpu_array_bpf__attach(skel);
+    err = stack_limit_bypass_bpf__attach(skel);
     if (err) {
         fprintf(stderr, "附加 BPF 程序失败: %d\n", err);
         goto cleanup;
     }
 
     // 创建 Ring Buffer
-    if (monitor_exec) {
-        exec_rb = ring_buffer__new(bpf_map__fd(skel->maps.events),
-                                   handle_exec_event, NULL, NULL);
-        if (!exec_rb) {
-            fprintf(stderr, "创建 exec ring buffer 失败\n");
-            err = -1;
-            goto cleanup;
-        }
-    }
-
-    if (monitor_file) {
-        file_rb = ring_buffer__new(bpf_map__fd(skel->maps.file_events),
-                                   handle_file_event, NULL, NULL);
-        if (!file_rb) {
-            fprintf(stderr, "创建 file ring buffer 失败\n");
-            err = -1;
-            goto cleanup;
-        }
+    rb = ring_buffer__new(bpf_map__fd(skel->maps.events),
+                          handle_exec_event, NULL, NULL);
+    if (!rb) {
+        fprintf(stderr, "创建 ring buffer 失败\n");
+        err = -1;
+        goto cleanup;
     }
 
     // 打印启动信息
@@ -253,7 +194,6 @@ int main(int argc, char **argv)
     printf("\n");
     printf("1. 规避 512B 栈限制：\n");
     printf("   - exec_event 结构体约 680 字节\n");
-    printf("   - file_open_event 结构体约 550 字节\n");
     printf("   - 使用 Per-CPU Array 作为临时缓冲区\n");
     printf("\n");
     printf("2. 避免并发竞争：\n");
@@ -265,20 +205,10 @@ int main(int argc, char **argv)
 
     // 主循环
     while (!exiting) {
-        if (exec_rb) {
-            err = ring_buffer__poll(exec_rb, 100);
-            if (err < 0 && err != -EINTR) {
-                fprintf(stderr, "轮询 exec ring buffer 错误: %d\n", err);
-                break;
-            }
-        }
-
-        if (file_rb) {
-            err = ring_buffer__poll(file_rb, 100);
-            if (err < 0 && err != -EINTR) {
-                fprintf(stderr, "轮询 file ring buffer 错误: %d\n", err);
-                break;
-            }
+        err = ring_buffer__poll(rb, 100);
+        if (err < 0 && err != -EINTR) {
+            fprintf(stderr, "轮询 ring buffer 错误: %d\n", err);
+            break;
         }
     }
 
@@ -290,9 +220,8 @@ int main(int argc, char **argv)
     printf("\n程序退出\n");
 
 cleanup:
-    ring_buffer__free(exec_rb);
-    ring_buffer__free(file_rb);
-    percpu_array_bpf__destroy(skel);
+    ring_buffer__free(rb);
+    stack_limit_bypass_bpf__destroy(skel);
 
     return err < 0 ? -err : 0;
 }
