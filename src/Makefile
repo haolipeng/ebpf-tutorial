@@ -28,7 +28,8 @@ SUBDIRS = \
 	ssl_write \
 	claude_trace \
 	percpu_array \
-	benchmark
+	benchmark \
+	tracee_patterns
 
 # Go 语言示例 (需要单独构建，参见各自目录的 README)
 # GO_SUBDIRS = cilium-ebpf-go libbpfgo-helloworld
