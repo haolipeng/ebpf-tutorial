@@ -7,11 +7,6 @@
 //   - raw_tracepoint/sched_process_exit: 捕获进程退出
 //   - BPF_MAP_TYPE_LRU_HASH: 进程信息缓存（自动淘汰）
 //   - BPF_MAP_TYPE_PERF_EVENT_ARRAY: 事件输出到用户态
-//
-// 对应 Elkeid 源码:
-//   - hids.c:3126-3167 (tp__proc_fork / tp__proc_exit)
-//   - hids.c:1568-1632 (construct_tid / find_current_tid)
-//   - hids.c:29-34     (tid_cache map 定义)
 
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -23,10 +18,6 @@
 
 /*
  * 进程信息缓存结构体
- *
- * 对应 Elkeid 中的 struct proc_tid (hids.h:38-63)，
- * Elkeid 的完整版包含 exe_path, cmdline, pidtree, cred, mntns 等，
- * 这里简化为最核心的字段用于演示。
  */
 struct proc_info {
     u32 pid;          /* 进程 ID (tgid) */
@@ -63,9 +54,6 @@ struct event {
  *
  * 3. 无需精确容量: 不需要知道系统最大进程数，
  *    设置一个合理上限即可
- *
- * 对应 Elkeid: hids.c:29-34
- *   struct { ... BPF_MAP_TYPE_LRU_HASH ... max_entries=10240 } tid_cache
  */
 struct {
     __uint(type, BPF_MAP_TYPE_LRU_HASH);
@@ -79,9 +67,6 @@ struct {
  *
  * perf event array 是 eBPF 向用户态发送数据的经典方式。
  * 每个 CPU 有独立的 ring buffer，用户态通过 epoll 读取。
- *
- * 对应 Elkeid: hids.c:37-41
- *   struct { ... BPF_MAP_TYPE_PERF_EVENT_ARRAY ... } events
  */
 struct {
     __uint(type, BPF_MAP_TYPE_PERF_EVENT_ARRAY);
@@ -105,16 +90,11 @@ struct {
  * 与普通 tracepoint 的性能差异:
  *   tracepoint: 内核先将参数序列化到 trace event 结构体，eBPF 再读取
  *   raw_tracepoint: eBPF 直接拿到原始 args 指针，零拷贝
- *
- * 对应 Elkeid: hids.c:3126-3148 (tp__proc_fork)
  */
 SEC("raw_tracepoint/sched_process_fork")
 int tp_fork(struct bpf_raw_tracepoint_args *ctx)
 {
     /* 从 raw_tracepoint args 中获取子进程 task_struct
-     *
-     * Elkeid 中的写法: task = (struct task_struct *)READ_KERN(ctx, args[1]);
-     * 这里用 BPF_CORE_READ 等价实现
      */
     struct task_struct *child = (struct task_struct *)ctx->args[1];
 
@@ -131,9 +111,6 @@ int tp_fork(struct bpf_raw_tracepoint_args *ctx)
      *   - 子线程: tgid != pid (共享地址空间，独立的 task_struct)
      *
      * 安全监控只关心进程级别，不需要跟踪每个线程
-     *
-     * 对应 Elkeid: hids.c:3141
-     *   if (tgid != pid) return 0;
      */
     if (tgid != pid)
         return 0;
@@ -141,7 +118,6 @@ int tp_fork(struct bpf_raw_tracepoint_args *ctx)
     /* 过滤内核线程 (PF_KTHREAD)
      *
      * 内核线程 (kthreadd 的子线程) 不需要安全监控
-     * 对应 Elkeid: hids.c:3136
      */
     u32 flags = BPF_CORE_READ(child, flags);
     if (flags & 0x00200000 /* PF_KTHREAD */)
@@ -184,8 +160,6 @@ int tp_fork(struct bpf_raw_tracepoint_args *ctx)
  * 注意: 这里不使用 raw_tracepoint args，而是用
  *       bpf_get_current_pid_tgid() 获取当前进程信息，
  *       因为退出的就是当前正在执行的进程。
- *
- * 对应 Elkeid: hids.c:3150-3167 (tp__proc_exit)
  */
 SEC("raw_tracepoint/sched_process_exit")
 int tp_exit(struct bpf_raw_tracepoint_args *ctx)
@@ -214,9 +188,6 @@ int tp_exit(struct bpf_raw_tracepoint_args *ctx)
 
     /*
      * 从缓存中删除退出进程的条目
-     *
-     * 对应 Elkeid: hids.c:3165
-     *   bpf_map_delete_elem(&tid_cache, &tgid);
      *
      * 即使这个删除操作因为某种原因失败或被跳过，
      * LRU_HASH 也会最终自动淘汰这个条目 —— 这就是选择 LRU 的好处
