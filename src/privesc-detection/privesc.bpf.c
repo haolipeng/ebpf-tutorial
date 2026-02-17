@@ -7,13 +7,6 @@
 //   - 通过 PT_REGS_PARM1 提取函数参数 (新凭证)
 //   - 通过 bpf_get_current_task() + BPF_CORE_READ 读取旧凭证
 //   - 比较新旧凭证检测提权行为
-//
-// 对应 Elkeid 源码:
-//   - hids.c:3471-3489   (kp__commit_creds)
-//   - hids.c:1061-1074   (construct_xids)
-//   - hids.c:1076-1090   (validate_xids)
-//   - hids.c:1092-1109   (privilege_escalation)
-//   - hids.c:792-831     (exe_is_allowed 白名单)
 
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
@@ -26,7 +19,6 @@
 
 /*
  * 提权检测事件
- *
  * 当检测到进程凭证从非 root 变为 root 时输出
  */
 struct event {
@@ -92,17 +84,6 @@ int kp_commit_creds(struct pt_regs *regs)
      *
      * PT_REGS_PARM1_CORE 是 CO-RE 版本的参数提取宏，
      * 它会自动处理不同内核版本中 pt_regs 的结构差异。
-     *
-     * x86_64 常规函数调用约定:
-     *   PARM1 = RDI
-     *   PARM2 = RSI
-     *   PARM3 = RDX
-     *   PARM4 = RCX
-     *   PARM5 = R8
-     *   PARM6 = R9
-     *
-     * 注意: 系统调用使用不同的寄存器映射 (PT_REGS_PARMx_SYSCALL)
-     * 这就是为什么 Elkeid 区分 FC_ (Function Call) 和 SC_ (SysCall) 宏。
      */
     struct cred *new_cred = (void *)PT_REGS_PARM1_CORE(regs);
     if (!new_cred)
@@ -118,10 +99,6 @@ int kp_commit_creds(struct pt_regs *regs)
      *   real_cred: 进程的客观凭证 (谁创建了这个进程)
      *   cred:      进程的主观凭证 (当前以谁的身份运行)
      *   通常两者相同，override_creds() 可以临时改变 cred
-     *
-     * 对应 Elkeid: hids.c:3482-3483
-     *   uid1 = READ_KERN(task, real_cred, uid.val);
-     *   euid1 = READ_KERN(task, real_cred, euid.val);
      */
     u32 old_uid  = BPF_CORE_READ(task, real_cred, uid.val);
     u32 old_euid = BPF_CORE_READ(task, real_cred, euid.val);
@@ -129,10 +106,6 @@ int kp_commit_creds(struct pt_regs *regs)
 
     /*
      * 读取新凭证 (函数参数)
-     *
-     * 对应 Elkeid: hids.c:3484-3485
-     *   uid2 = READ_KERN(cred, uid.val);
-     *   euid2 = READ_KERN(cred, euid.val);
      */
     u32 new_uid  = BPF_CORE_READ(new_cred, uid.val);
     u32 new_euid = BPF_CORE_READ(new_cred, euid.val);
@@ -149,12 +122,6 @@ int kp_commit_creds(struct pt_regs *regs)
      *   - SUID root 程序执行 (如 passwd, ping)
      *   - 内核漏洞利用 (如 dirty pipe, dirty cow)
      *   - 容器逃逸导致的提权
-     *
-     * 对应 Elkeid: hids.c:3486
-     *   if (uid1 != 0 && euid1 != 0 && (!uid2 || !euid2))
-     *
-     * Elkeid 的完整版还有 validate_xids() (hids.c:1076-1090)
-     * 可以检测 8 个凭证字段的任意变化 (包括 gid/sgid/fsgid 等)
      */
     if (old_uid != 0 && old_euid != 0 &&
         (new_uid == 0 || new_euid == 0)) {

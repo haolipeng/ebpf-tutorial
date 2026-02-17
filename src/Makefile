@@ -12,27 +12,28 @@
 
 # C 语言示例 (基于 libbpf)
 SUBDIRS = \
-	helloworld \
-	kprobe \
-	uprobe \
-	user_map \
-	kernel_and_user_map \
-	perfbuffer \
-	ringbuffer \
-	tracepoint \
-	raw_tracepoint \
-	btf \
-	tc_ingress \
-	tc_egress \
-	xdp_filter \
-	ssl_write \
-	claude_trace \
-	percpu_array \
-	benchmark \
+	01-helloworld \
+	02-kprobe \
+	03-uprobe \
+	04-user-map \
+	05-kernel-user-map \
+	07a-ringbuffer \
+	07b-perfbuffer \
+	08-tracepoint \
+	09-raw-tracepoint \
+	10-btf \
+	11-tc-ingress \
+	12-tc-egress \
+	13-ssl-sniff \
+	14-ssl-traffic-monitor \
+	17-xdp-filter \
+	18-verifier \
+	20-core-bitfield \
+	21-core-field-exists \
 	tracee_patterns
 
 # Go 语言示例 (需要单独构建，参见各自目录的 README)
-# GO_SUBDIRS = cilium-ebpf-go libbpfgo-helloworld
+# GO_SUBDIRS = 06a-cilium-ebpf-go 06b-libbpfgo-helloworld
 
 #============================================================================
 # 构建目标

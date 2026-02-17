@@ -88,7 +88,7 @@ $(OUTPUT):
 $(OUTPUT)/%.bpf.o: %.bpf.c $(wildcard %.h) $(VMLINUX_H) | $(OUTPUT)
 	$(call msg,BPF,$@)
 	$(Q)$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) \
-		$(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+		$(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) $(EXTRA_BPF_CFLAGS) -c $(filter %.c,$^) -o $@
 	$(Q)$(LLVM_STRIP) -g $@
 
 # 2. 生成 BPF skeleton (.bpf.o -> .skel.h)
