@@ -26,6 +26,8 @@ SUBDIRS = \
 	12-tc-egress \
 	13-ssl-sniff \
 	14-ssl-traffic-monitor \
+	15-exec-command-monitor \
+	16-bash-readline-monitor \
 	17-xdp-filter \
 	18-verifier \
 	20-core-bitfield \
