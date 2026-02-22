@@ -237,9 +237,11 @@ int tracepoint_sched_process_exec(struct bpf_raw_tracepoint_args *ctx)
     save_str_to_buf(&p.event->args_buf, (void *)filename, 0);
 
     // 获取参数 (argv)
-    // 注意: 这里简化处理，实际需要更复杂的逻辑
-    unsigned long argv = BPF_CORE_READ(bprm, p, mm, arg_start);
-    unsigned long arg_end = BPF_CORE_READ(bprm, p, mm, arg_end);
+    // 注意: bprm->p 是 unsigned long 不是指针，不能链式读取
+    // 需要先读取 bprm->mm，再从 mm 读取 arg_start/arg_end
+    struct mm_struct *mm = BPF_CORE_READ(bprm, mm);
+    unsigned long argv = BPF_CORE_READ(mm, arg_start);
+    unsigned long arg_end = BPF_CORE_READ(mm, arg_end);
 
     if (argv && arg_end > argv) {
         u32 argc = BPF_CORE_READ(bprm, argc);

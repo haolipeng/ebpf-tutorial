@@ -10,6 +10,11 @@
 #include <bpf/bpf_core_read.h>
 #include "common.h"
 
+// vmlinux.h 不包含 socket address family 宏定义，需要手动定义
+#define AF_UNIX   1
+#define AF_INET   2
+#define AF_INET6  10
+
 //============================================================================
 // 技巧 1: 使用 ___suffix 定义多版本结构体
 // 当内核��构体在不同版本有不同定义时使用
@@ -18,12 +23,8 @@
 // 内核 < 5.0: task_struct 使用 pids 数组
 // 这里需要复制旧版本的定义
 
-enum pid_type_compat {
-    PIDTYPE_PID,
-    PIDTYPE_PGID,
-    PIDTYPE_SID,
-    PIDTYPE_MAX,
-};
+// 使用 vmlinux.h 中已有的 PIDTYPE_* 枚举值
+// enum pid_type 已在 vmlinux.h 中定义
 
 struct pid_link_compat {
     struct hlist_node node;
@@ -50,9 +51,19 @@ struct module___older_v64 {
     struct module_layout_compat core_layout;
 };
 
+// 内核 < 5.5: task_struct 使用 real_start_time 而非 start_boottime
+struct task_struct___older_v55 {
+    u64 real_start_time;
+};
+
 // 内核 < 6.6: inode.i_ctime 是 timespec64
 struct inode___older_v66 {
     struct timespec64 i_ctime;
+};
+
+// 内核 6.11+: inode 使用 __i_ctime 字段
+struct inode___newer_v611 {
+    struct timespec64 __i_ctime;
 };
 
 //============================================================================
@@ -67,7 +78,9 @@ statfunc u64 get_task_start_time(struct task_struct *task)
         // 内核 5.5+ 字段名从 real_start_time 改为 start_boottime
         if (bpf_core_field_exists(task->start_boottime))
             return BPF_CORE_READ(task, start_boottime);
-        return BPF_CORE_READ(task, real_start_time);
+        // 旧内核使用 real_start_time，通过 shadow struct 访问
+        struct task_struct___older_v55 *old_task = (void *)task;
+        return BPF_CORE_READ(old_task, real_start_time);
     }
     return BPF_CORE_READ(task, start_time);
 }
@@ -158,18 +171,18 @@ statfunc u32 get_sockaddr_size(short family)
 // 获取 inode 的 ctime (兼容内核 6.6+ 的变化)
 statfunc u64 get_inode_ctime_sec(struct inode *inode)
 {
-    // 内核 6.11+ 使用 __i_ctime
-    if (bpf_core_field_exists(inode->__i_ctime)) {
-        struct timespec64 ts;
-        bpf_core_read(&ts, sizeof(ts), &inode->__i_ctime);
-        return ts.tv_sec;
-    }
-
-    // 内核 6.6-6.10 可能使用其他方式，这里简化处理
-    // 旧版本使用 i_ctime
+    // 先检查当前内���是否有 i_ctime 字段 (内核 < 6.11)
     struct inode___older_v66 *old_inode = (void *)inode;
     if (bpf_core_field_exists(old_inode->i_ctime)) {
         return BPF_CORE_READ(old_inode, i_ctime.tv_sec);
+    }
+
+    // 内核 6.11+ 使用 __i_ctime，通过 shadow struct 访问
+    struct inode___newer_v611 *new_inode = (void *)inode;
+    if (bpf_core_field_exists(new_inode->__i_ctime)) {
+        struct timespec64 ts;
+        bpf_core_read(&ts, sizeof(ts), &new_inode->__i_ctime);
+        return ts.tv_sec;
     }
 
     return 0;

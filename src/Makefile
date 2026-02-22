@@ -17,21 +17,23 @@ SUBDIRS = \
 	03-uprobe \
 	04-user-map \
 	05-kernel-user-map \
-	07a-ringbuffer \
-	07b-perfbuffer \
-	08-tracepoint \
-	09-raw-tracepoint \
-	10-btf \
-	11-tc-ingress \
-	12-tc-egress \
-	13-ssl-sniff \
-	14-ssl-traffic-monitor \
-	15-exec-command-monitor \
-	16-bash-readline-monitor \
-	17-xdp-filter \
-	18-verifier \
-	20-core-bitfield \
-	21-core-field-exists \
+	08-perfbuffer \
+	09-ringbuffer \
+	10-tracepoint \
+	11-raw-tracepoint \
+	12-btf \
+	13-tc-ingress \
+	14-tc-egress \
+	15-ssl-traffic-monitor \
+	16-exec-command-monitor \
+	17-bash-readline-monitor \
+	18-xdp-filter \
+	19-verifier \
+	20-bypass-stack-limit \
+	21-core-bitfield \
+	22-core-field-exists \
+	23-loops \
+	24-lsm \
 	tracee_patterns
 
 # Go 语言示例 (需要单独构建，参见各自目录的 README)

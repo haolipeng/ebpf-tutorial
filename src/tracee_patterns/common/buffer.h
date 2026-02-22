@@ -145,7 +145,7 @@ statfunc int save_bytes_to_buf(args_buffer_t *buf, void *ptr, u32 size,
 #define MAX_STR_ARR_ELEM 8
 
 statfunc int save_str_arr_to_buf(args_buffer_t *buf,
-                                  const char __user *const __user *ptr,
+                                  const char *const *ptr,
                                   u8 index)
 {
     u8 elem_num = 0;
